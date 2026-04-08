@@ -1,0 +1,214 @@
+/* ===== 側邊欄容器 ===== */
+#yt-sub-demo-sidebar {
+  position: fixed;
+  top: 60px;
+  right: 0;
+  width: 360px;
+  height: calc(100vh - 70px);
+  background: #1a1a2e;
+  color: #e0e0e0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4);
+  border-radius: 12px 0 0 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+#yt-sub-demo-sidebar.collapsed {
+  height: auto;
+}
+
+#yt-sub-demo-sidebar.collapsed .yt-sub-demo-body {
+  display: none;
+}
+
+/* ===== Header ===== */
+.yt-sub-demo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 12px 0 0 0;
+  flex-shrink: 0;
+}
+
+.yt-sub-demo-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: white;
+}
+
+.yt-sub-demo-toggle {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.yt-sub-demo-toggle:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* ===== Body ===== */
+.yt-sub-demo-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  padding: 12px;
+  gap: 10px;
+}
+
+/* ===== 狀態列 ===== */
+.yt-sub-demo-status {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #16213e;
+  color: #aaa;
+  flex-shrink: 0;
+}
+
+.yt-sub-demo-status.success {
+  background: #0d3320;
+  color: #4ade80;
+}
+
+.yt-sub-demo-status.error {
+  background: #3b1010;
+  color: #f87171;
+}
+
+/* ===== 語言按鈕 ===== */
+.yt-sub-demo-langs {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.yt-sub-demo-section-title {
+  width: 100%;
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 2px;
+}
+
+.yt-sub-demo-lang-btn {
+  padding: 6px 12px;
+  background: #16213e;
+  color: #c0c0c0;
+  border: 1px solid #2a2a4a;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.yt-sub-demo-lang-btn:hover {
+  background: #1f3060;
+  color: white;
+}
+
+.yt-sub-demo-lang-btn.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+/* ===== 當前字幕顯示 ===== */
+.yt-sub-demo-current {
+  min-height: 50px;
+  padding: 12px;
+  background: #16213e;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: center;
+  color: #666;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.yt-sub-demo-current.active {
+  background: linear-gradient(135deg, #1a1a4e, #2a1a4e);
+  color: #e8d5ff;
+  font-weight: 500;
+  border: 1px solid #667eea44;
+}
+
+/* ===== 字幕清單 ===== */
+.yt-sub-demo-list {
+  flex: 1;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: #0f0f23;
+}
+
+.yt-sub-demo-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.yt-sub-demo-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.yt-sub-demo-list::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+
+/* ===== 單條字幕 ===== */
+.yt-sub-demo-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #1a1a3e;
+  cursor: pointer;
+  transition: all 0.15s;
+  align-items: flex-start;
+}
+
+.yt-sub-demo-item:hover {
+  background: #1a1a3e;
+  padding-left: 16px;
+}
+
+.yt-sub-demo-item.active {
+  background: linear-gradient(90deg, #667eea33, transparent);
+  border-left: 3px solid #667eea;
+}
+
+.yt-sub-demo-item.active .yt-sub-demo-text {
+  color: white;
+  font-weight: 500;
+}
+
+.yt-sub-demo-item.active .yt-sub-demo-time {
+  color: #667eea;
+}
+
+.yt-sub-demo-time {
+  font-size: 11px;
+  color: #555;
+  min-width: 36px;
+  padding-top: 2px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  flex-shrink: 0;
+}
+
+.yt-sub-demo-text {
+  font-size: 13px;
+  color: #bbb;
+  line-height: 1.4;
+}
