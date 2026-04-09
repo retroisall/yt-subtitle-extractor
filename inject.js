@@ -27,6 +27,15 @@
     Object.assign(subtitleCache, g);
   }
 
+  // 檢查 baseUrl 是否過期（expire 參數 < 現在）
+  function isBaseUrlExpired(baseUrl) {
+    try {
+      const expire = new URL(baseUrl).searchParams.get('expire');
+      if (!expire) return false;
+      return parseInt(expire, 10) < Math.floor(Date.now() / 1000);
+    } catch (e) { return false; }
+  }
+
   // 從 patch.js 全域快取讀取最新 player renderer
   function syncPlayerCache() {
     const g = window.__YT_SUB_PLAYER_CACHE__ || {};
@@ -34,6 +43,14 @@
     if (!videoId) return;
     const entry = g[videoId];
     if (entry?.renderer?.captionTracks?.length > 0) {
+      // 驗證 baseUrl 是否已過期
+      const firstUrl = entry.renderer.captionTracks[0]?.baseUrl || '';
+      if (isBaseUrlExpired(firstUrl)) {
+        console.log('[YT-SUB] ⚠️ 快取 baseUrl 已過期，清除 videoId=' + videoId);
+        delete g[videoId];
+        if (cachedVideoId === videoId) { cachedRenderer = null; cachedVideoId = null; allTracks = []; }
+        return;
+      }
       cachedRenderer = entry.renderer;
       cachedVideoId  = videoId;
       allTracks      = entry.renderer.captionTracks;
@@ -157,13 +174,16 @@
   }
 
   // ===== 透過 YouTube 播放器 API 觸發字幕載入 =====
+  let _captionsModuleLoaded = false;
+
   function triggerYouTubeCaption(languageCode) {
     try {
       const player = document.querySelector('#movie_player') || document.querySelector('.html5-video-player');
       if (!player) return false;
-      // 確保字幕模組已載入（CC 關閉時 setOption 可能無效）
-      if (typeof player.loadModule === 'function') {
+      // loadModule 只呼叫一次（重複呼叫可能重置 CC 系統狀態）
+      if (!_captionsModuleLoaded && typeof player.loadModule === 'function') {
         try { player.loadModule('captions'); } catch (e) {}
+        _captionsModuleLoaded = true;
       }
       if (typeof player.setOption !== 'function') return false;
       player.setOption('captions', 'track', { languageCode });
@@ -316,82 +336,129 @@
       triggerYouTubeCaption(languageCode);
     }
 
+    // ── 路徑零：sessionStorage 持久快取 ──────────────────────────
+    const scCached = scGet(videoId, languageCode);
+    if (scCached) {
+      console.log('[YT-SUB] sessionStorage 命中 key=' + cacheKey);
+      window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', data: null, parsed: scCached, error: null, tag }, '*');
+      return;
+    }
+
     // ── 路徑一：快取（YouTube 播放器已自動 fetch 過）──────────────
     syncTimedtextCache(); // 先把 patch.js 攔截到的資料合併進來
     if (subtitleCache[cacheKey]) {
       console.log('[YT-SUB] 使用快取 key=' + cacheKey);
-      try {
-        const { text, fmt } = subtitleCache[cacheKey];
-        const json = parseSubtitleText(text, fmt);
-        window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', data: json, error: null, tag }, '*');
-        return;
-      } catch (e) {}
+      const { text, fmt } = subtitleCache[cacheKey];
+      if (dispatchSubtitle(text, fmt, videoId, languageCode, tag)) return;
     }
 
     // ── 路徑二：請 YouTube 播放器自己去 fetch，我們偷聽 ──────────
-    // 先用 ASR 暖機：CC 關閉時 setOption 無效，需先激活字幕系統
-    const asrForWarmup = allTracks.find(t => (t.vssId || '').startsWith('a.') && t.languageCode !== languageCode);
-    if (asrForWarmup) {
-      triggerYouTubeCaption(asrForWarmup.languageCode);
-      await new Promise(r => setTimeout(r, 300));
-    }
-    const triggered = triggerYouTubeCaption(languageCode);
-    if (triggered) {
-      console.log('[YT-SUB] 觸發播放器載入字幕，等待攔截...');
-      for (let i = 0; i < 8; i++) {
-        await new Promise(r => setTimeout(r, 500));
-        if (subtitleCache[cacheKey]) {
-          console.log('[YT-SUB] 播放器路徑成功！key=' + cacheKey);
-          try {
-            const { text, fmt } = subtitleCache[cacheKey];
-            const json = parseSubtitleText(text, fmt);
-            window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', data: json, error: null, tag }, '*');
-            return;
-          } catch (e) {}
-        }
+    // 翻譯目標（不在原生 tracks）跳過此路徑，播放器不會主動 fetch 翻譯字幕
+    const isNativeTrack = allTracks.some(t => t.languageCode === languageCode);
+    if (isNativeTrack) {
+      // 暖機：CC 關閉時 setOption 無效，需先用任意一條 track 激活字幕系統
+      // 優先選不同語言的 ASR；找不到就用任意其他 track；實在只有一條就用自己
+      const warmupTrack = allTracks.find(t => (t.vssId || '').startsWith('a.') && t.languageCode !== languageCode)
+        || allTracks.find(t => t.languageCode !== languageCode)
+        || allTracks[0];
+      if (warmupTrack) {
+        triggerYouTubeCaption(warmupTrack.languageCode);
+        await new Promise(r => setTimeout(r, 300));
       }
-      console.log('[YT-SUB] 播放器 4 秒內無回應，改用直接 fetch');
+      const triggered = triggerYouTubeCaption(languageCode);
+      if (triggered) {
+        console.log('[YT-SUB] 觸發播放器載入字幕，等待攔截...');
+        for (let i = 0; i < 8; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          if (subtitleCache[cacheKey]) {
+            console.log('[YT-SUB] 播放器路徑成功！key=' + cacheKey);
+            const { text, fmt } = subtitleCache[cacheKey];
+            if (dispatchSubtitle(text, fmt, videoId, languageCode, tag)) return;
+          }
+        }
+        console.log('[YT-SUB] 播放器 4 秒內無回應，改用直接 fetch');
+      }
     }
 
     // ── 路徑三：直接 fetch（帶 SAPISIDHASH）───────────────────────
+    // baseUrl 過期 → 重新從 Innertube 拿最新 tracks
+    if (allTracks.length > 0 && isBaseUrlExpired(allTracks[0]?.baseUrl || '')) {
+      console.log('[YT-SUB] ⚠️ allTracks baseUrl 過期，重新 fetch Innertube...');
+      const videoId2 = getCurrentVideoId();
+      const freshRenderer = await getFromInnertube(videoId2);
+      if (freshRenderer?.captionTracks?.length) {
+        allTracks = freshRenderer.captionTracks;
+        console.log('[YT-SUB] ✅ 取得新 baseUrl，tracks=' + allTracks.length);
+      }
+    }
+
     const findTrack = prefix => allTracks.find(t => (t.vssId || '').startsWith(prefix));
 
     let url;
     const manualTarget = findTrack('.' + languageCode);
     const asrTarget    = findTrack('a.' + languageCode);
-    const anyManual    = findTrack('.');
-    const anyAsr       = allTracks.find(t => (t.vssId || '').startsWith('a.'));
+    // &tlang= 翻譯：優先英文源（翻譯品質最佳），其次 ASR，最後任意 manual
+    const enManual  = findTrack('.en');
+    const enAsr     = findTrack('a.en');
+    const anyAsr    = allTracks.find(t => (t.vssId || '').startsWith('a.'));
+    const anyManual = findTrack('.');
+
+    // 用 URL 物件設定參數，避免 baseUrl 本身已含 &fmt= 造成重複
+    function buildUrl(baseUrl, tlang) {
+      try {
+        const u = new URL(baseUrl);
+        u.searchParams.set('fmt', 'json3');
+        if (tlang) u.searchParams.set('tlang', tlang);
+        return u.toString();
+      } catch (e) {
+        return baseUrl.replace(/&fmt=[^&]*/g, '')
+          + '&fmt=json3' + (tlang ? '&tlang=' + tlang : '');
+      }
+    }
 
     if (manualTarget) {
-      url = manualTarget.baseUrl + '&fmt=json3';
+      url = buildUrl(manualTarget.baseUrl);
       console.log('[YT-SUB] 使用手動字幕 vssId=' + manualTarget.vssId);
     } else if (asrTarget) {
-      url = asrTarget.baseUrl + '&fmt=json3';
+      url = buildUrl(asrTarget.baseUrl);
       console.log('[YT-SUB] 使用 ASR 字幕 vssId=' + asrTarget.vssId);
     } else {
-      const fallback = anyManual || anyAsr || allTracks[0];
+      const fallback = enAsr || enManual || anyAsr || anyManual || allTracks[0];
       if (!fallback) {
         window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', error: '找不到可用字幕來源', tag }, '*');
         return;
       }
-      url = fallback.baseUrl + '&fmt=json3&tlang=' + languageCode;
+      url = buildUrl(fallback.baseUrl, languageCode);
       console.log('[YT-SUB] 使用 &tlang= 即時翻譯 vssId=' + fallback.vssId + ' → ' + languageCode);
     }
 
     console.log('[YT-SUB] 直接 fetch URL:', url.slice(0, 120));
     try {
-      const headers = await buildSapiAuthHeader();
-      console.log('[YT-SUB] auth header:', headers['Authorization'] ? '✅ 有' : '❌ 無');
+      // 先不帶 auth 試（大部分公開字幕不需要）
+      let response = await originalFetch(url, { credentials: 'include' });
+      let text = await response.text();
+      console.log('[YT-SUB] 結果(no-auth): status=' + response.status + ' len=' + text.length);
 
-      const response = await originalFetch(url, { headers, credentials: 'include' });
-      const text = await response.text();
-      console.log('[YT-SUB] 結果: status=' + response.status + ' len=' + text.length);
-      if (!text || text.length < 10) {
-        window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', error: '字幕回應為空（auth header 缺失或此影片受 YouTube 限制）', tag }, '*');
+      // 404 → 直接報錯，不重試（URL 本身無效）
+      if (response.status === 404) {
+        window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', error: `字幕不存在 (404)，請重新整理頁面`, tag }, '*');
         return;
       }
-      const json = parseSubtitleText(text, 'json3');
-      window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', data: json, error: null, tag }, '*');
+
+      // len=0 或非 2xx → 補 auth 重試
+      if (!text || text.length < 10 || !response.ok) {
+        const headers = await buildSapiAuthHeader();
+        console.log('[YT-SUB] 補 auth header:', headers['Authorization'] ? '✅ 有' : '❌ 無');
+        response = await originalFetch(url, { headers, credentials: 'include' });
+        text = await response.text();
+        console.log('[YT-SUB] 結果(auth): status=' + response.status + ' len=' + text.length);
+      }
+
+      if (!text || text.length < 10) {
+        window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', error: `字幕回應為空 (status=${response.status})`, tag }, '*');
+        return;
+      }
+      dispatchSubtitle(text, 'json3', videoId, languageCode, tag);
     } catch (e) {
       window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', error: e.message, tag }, '*');
     }
@@ -430,6 +497,9 @@
     // 清除上一次的等待
     if (_waitTimer) { clearTimeout(_waitTimer); _waitTimer = null; }
     if (_playerListener) { window.removeEventListener('__yt_sub_player__', _playerListener); _playerListener = null; }
+
+    // 換影片時重置 loadModule flag
+    _captionsModuleLoaded = false;
 
     // 清除字幕快取（換影片 / 手動刷新）
     Object.keys(subtitleCache).forEach(k => delete subtitleCache[k]);
@@ -471,6 +541,57 @@
       cleanup();
       extractAndSend();
     }, 3000);
+  }
+
+  // ===== sessionStorage 字幕快取 =====
+  const SC_PREFIX = 'yt-sub-sc:';
+  const SC_MAX_ENTRIES = 20; // 最多存 20 條，避免 sessionStorage 爆滿
+
+  function scKey(videoId, languageCode) {
+    return SC_PREFIX + videoId + ':' + languageCode;
+  }
+
+  function scGet(videoId, languageCode) {
+    try {
+      const raw = sessionStorage.getItem(scKey(videoId, languageCode));
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) { return null; }
+  }
+
+  function scSet(videoId, languageCode, parsed) {
+    try {
+      // LRU：超過上限就刪最舊的
+      const keys = Object.keys(sessionStorage).filter(k => k.startsWith(SC_PREFIX));
+      if (keys.length >= SC_MAX_ENTRIES) {
+        sessionStorage.removeItem(keys[0]);
+      }
+      sessionStorage.setItem(scKey(videoId, languageCode), JSON.stringify(parsed));
+    } catch (e) {} // QuotaExceededError 靜默忽略
+  }
+
+  // ===== 解析 + 快取 + 送出（三條路徑共用）=====
+  function dispatchSubtitle(text, fmt, videoId, languageCode, tag) {
+    try {
+      const json = parseSubtitleText(text, fmt);
+      const parsed = parseJson3Compact(json);
+      scSet(videoId, languageCode, parsed);
+      window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', data: null, parsed, error: null, tag }, '*');
+      return true;
+    } catch (e) { return false; }
+  }
+
+  // ===== 精簡解析（減少 postMessage 資料量）=====
+  function parseJson3Compact(json) {
+    if (!json?.events) return [];
+    return json.events
+      .filter(e => e.segs?.length > 0)
+      .map(e => ({
+        s: (e.tStartMs || 0) / 1000,
+        d: (e.dDurationMs || 2000) / 1000,
+        t: e.segs.map(s => s.utf8 || '').join('').trim(),
+      }))
+      .filter(e => e.t.length > 0);
   }
 
   // ===== 監聽 content script 的請求 =====

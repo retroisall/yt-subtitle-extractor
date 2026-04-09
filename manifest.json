@@ -4,7 +4,11 @@
   "version": "1.0",
   "description": "自動提取 YouTube 字幕並同步顯示",
   "permissions": [],
-  "host_permissions": ["*://www.youtube.com/*"],
+  "host_permissions": [
+    "*://www.youtube.com/*",
+    "https://translate.googleapis.com/*",
+    "https://api.dictionaryapi.dev/*"
+  ],
   "content_scripts": [
     {
       "matches": ["*://www.youtube.com/*"],

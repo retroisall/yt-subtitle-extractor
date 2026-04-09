@@ -241,6 +241,94 @@
 .yt-sub-status.success { background: #0d3320; color: #4ade80; }
 .yt-sub-status.error   { background: #3b1010; color: #f87171; }
 
+/* ===== 影片 Overlay ===== */
+#yt-sub-overlay {
+  position: absolute;
+  bottom: 8%;
+  left: 2%;
+  right: calc(360px + 2%); /* 留出 sidebar 寬度 */
+  z-index: 100;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+/* 導覽按鈕 */
+.yt-sub-ov-nav {
+  pointer-events: all;
+  background: rgba(0,0,0,0.5);
+  border: none;
+  color: rgba(255,255,255,0.7);
+  font-size: 2.4cqw;
+  width: 3cqw;
+  height: 3cqw;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+}
+
+.yt-sub-ov-nav:hover {
+  background: rgba(102,126,234,0.7);
+  color: #fff;
+}
+
+/* 字幕主體背版 */
+#yt-sub-ov-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 8px;
+  padding: 6px 12px;
+  pointer-events: all;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s;
+}
+
+#yt-sub-ov-body:hover {
+  background: rgba(0,0,0,0.65);
+}
+
+#yt-sub-ov-body.looping {
+  background: rgba(102,126,234,0.35);
+  box-shadow: 0 0 0 2px #667eea88;
+}
+
+#yt-sub-ov-primary {
+  font-size: 2.2cqw;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+#yt-sub-ov-secondary {
+  font-size: 1.8cqw;
+  font-weight: 500;
+  color: var(--ov-secondary-color, #a855f7);
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+/* overlay 上的單字 hover */
+#yt-sub-ov-primary .yt-sub-word:hover {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  border-radius: 3px;
+}
+
 /* ===== 語言選擇區 ===== */
 .yt-sub-langs {
   flex-shrink: 0;
@@ -273,6 +361,22 @@
   border-color: #667eea;
 }
 
+.yt-sub-input {
+  flex: 1;
+  min-width: 0;
+  background: #1a1a3e;
+  color: #ddd;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.yt-sub-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
 /* ===== 當前字幕大字 ===== */
 .yt-sub-current {
   min-height: 52px;
@@ -281,11 +385,22 @@
   border-radius: 8px;
   text-align: center;
   flex-shrink: 0;
-  transition: all 0.2s;
+  transition: background 0.2s, box-shadow 0.2s;
   display: flex;
   flex-direction: column;
   gap: 4px;
   justify-content: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.yt-sub-current:hover {
+  background: #1a2a50;
+}
+
+.yt-sub-current.looping {
+  background: rgba(102, 126, 234, 0.2);
+  box-shadow: 0 0 0 2px #667eea88;
 }
 
 .yt-sub-current.active {
@@ -381,4 +496,129 @@
 
 .yt-sub-current-secondary {
   color: var(--secondary-color, #a855f7);
+}
+
+/* ===== 可點擊單字 ===== */
+.yt-sub-word {
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.yt-sub-word:hover {
+  background: rgba(102, 126, 234, 0.25);
+  color: #a0b4ff;
+}
+
+#yt-sub-demo-sidebar.word-hover-off .yt-sub-word:hover {
+  background: none;
+  color: inherit;
+}
+
+/* ===== 單字查詢浮窗 ===== */
+#yt-sub-word-popup {
+  position: fixed;
+  width: 320px;
+  background: #0f0f23;
+  border: 1px solid #667eea66;
+  border-radius: 10px;
+  padding: 12px 14px;
+  z-index: 99999;
+  font-size: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  max-height: 260px;
+  overflow-y: auto;
+  display: none;
+}
+
+.yt-sub-popup-loading,
+.yt-sub-popup-error {
+  color: #888;
+  font-size: 12px;
+}
+
+.yt-sub-popup-word {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e8d5ff;
+  margin-bottom: 4px;
+}
+
+.yt-sub-popup-phonetic {
+  font-size: 12px;
+  color: #667eea;
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+.yt-sub-popup-pos {
+  font-size: 10px;
+  font-weight: 700;
+  color: #a855f7;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 8px;
+  margin-bottom: 3px;
+}
+
+.yt-sub-popup-def {
+  color: #ccc;
+  line-height: 1.5;
+  margin-bottom: 2px;
+}
+
+.yt-sub-popup-def-zh {
+  color: #a0b4ff;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.yt-sub-popup-translating {
+  color: #555;
+  font-size: 11px;
+  font-style: italic;
+}
+
+.yt-sub-popup-example {
+  color: #666;
+  font-style: italic;
+  font-size: 11px;
+  margin-bottom: 8px;
+  padding-left: 8px;
+}
+
+.yt-sub-popup-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #667eea;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 4px;
+  margin-bottom: 5px;
+}
+
+.yt-sub-popup-synonyms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.yt-sub-popup-syn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #1a1a3e;
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.yt-sub-popup-syn-en {
+  font-size: 12px;
+  color: #ddd;
+}
+
+.yt-sub-popup-syn-zh {
+  font-size: 10px;
+  color: #a855f7;
 }
