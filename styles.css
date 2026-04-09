@@ -19,28 +19,33 @@
   height: auto;
 }
 
-#yt-sub-demo-sidebar.collapsed .yt-sub-demo-body {
+#yt-sub-demo-sidebar.collapsed .yt-sub-body {
   display: none;
 }
 
 /* ===== Header ===== */
-.yt-sub-demo-header {
+.yt-sub-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 12px 14px;
   background: linear-gradient(135deg, #667eea, #764ba2);
   border-radius: 12px 0 0 0;
   flex-shrink: 0;
 }
 
-.yt-sub-demo-title {
-  font-size: 15px;
+.yt-sub-title {
+  font-size: 14px;
   font-weight: 700;
   color: white;
 }
 
-.yt-sub-demo-toggle {
+.yt-sub-header-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.yt-sub-icon-btn {
   background: rgba(255, 255, 255, 0.2);
   border: none;
   color: white;
@@ -48,167 +53,332 @@
   height: 28px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.2s;
 }
 
-.yt-sub-demo-toggle:hover {
+.yt-sub-icon-btn:hover {
   background: rgba(255, 255, 255, 0.35);
 }
 
 /* ===== Body ===== */
-.yt-sub-demo-body {
+.yt-sub-body {
   display: flex;
   flex-direction: column;
   flex: 1;
   overflow: hidden;
-  padding: 12px;
-  gap: 10px;
+  padding: 10px;
+  gap: 8px;
+}
+
+/* ===== 設定面板 ===== */
+.yt-sub-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: #0f0f23;
+  border-radius: 10px;
+  flex-shrink: 0;
+  border: 1px solid #2a2a4a;
+  overflow: hidden;
+}
+
+.yt-sub-settings-section {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid #1a1a3e;
+}
+
+.yt-sub-settings-section:last-child {
+  border-bottom: none;
+}
+
+.yt-sub-settings-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #667eea;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.yt-sub-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.yt-sub-settings-label {
+  font-size: 12px;
+  color: #aaa;
+  white-space: nowrap;
+}
+
+.yt-sub-select {
+  flex: 1;
+  min-width: 0;
+  background: #1a1a3e;
+  color: #ddd;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* 大小按鈕組 */
+.yt-sub-size-group {
+  display: flex;
+  gap: 4px;
+}
+
+.yt-sub-size-group button {
+  padding: 3px 10px;
+  background: #1a1a3e;
+  color: #888;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.yt-sub-size-group button:hover {
+  background: #2a2a5a;
+  color: #ccc;
+}
+
+.yt-sub-size-group button.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+/* 顏色色板 */
+.yt-sub-swatch-group {
+  display: flex;
+  gap: 6px;
+}
+
+.yt-sub-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.yt-sub-swatch:hover {
+  transform: scale(1.15);
+}
+
+.yt-sub-swatch.active {
+  border-color: white;
+  transform: scale(1.15);
+}
+
+/* Toggle switch */
+.yt-sub-switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.yt-sub-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.yt-sub-switch-slider {
+  position: absolute;
+  inset: 0;
+  background: #444;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.yt-sub-switch-slider::before {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  left: 3px;
+  top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.yt-sub-switch input:checked + .yt-sub-switch-slider {
+  background: #667eea;
+}
+
+.yt-sub-switch input:checked + .yt-sub-switch-slider::before {
+  transform: translateX(18px);
 }
 
 /* ===== 狀態列 ===== */
-.yt-sub-demo-status {
-  padding: 10px 12px;
+.yt-sub-status {
+  padding: 8px 12px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   background: #16213e;
   color: #aaa;
   flex-shrink: 0;
 }
 
-.yt-sub-demo-status.success {
-  background: #0d3320;
-  color: #4ade80;
-}
+.yt-sub-status.success { background: #0d3320; color: #4ade80; }
+.yt-sub-status.error   { background: #3b1010; color: #f87171; }
 
-.yt-sub-demo-status.error {
-  background: #3b1010;
-  color: #f87171;
-}
-
-/* ===== 語言按鈕 ===== */
-.yt-sub-demo-langs {
+/* ===== 語言選擇區 ===== */
+.yt-sub-langs {
   flex-shrink: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
 
-.yt-sub-demo-section-title {
-  width: 100%;
-  font-size: 12px;
-  color: #888;
-  margin-bottom: 2px;
+.yt-sub-section-title {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.yt-sub-demo-lang-btn {
-  padding: 6px 12px;
+.yt-sub-lang-select {
+  flex: 1;
+  min-width: 0;
   background: #16213e;
-  color: #c0c0c0;
+  color: #ddd;
   border: 1px solid #2a2a4a;
-  border-radius: 20px;
+  border-radius: 6px;
+  padding: 5px 8px;
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.2s;
 }
 
-.yt-sub-demo-lang-btn:hover {
-  background: #1f3060;
-  color: white;
-}
-
-.yt-sub-demo-lang-btn.active {
-  background: #667eea;
-  color: white;
+.yt-sub-lang-select:focus {
+  outline: none;
   border-color: #667eea;
 }
 
-/* ===== 當前字幕顯示 ===== */
-.yt-sub-demo-current {
-  min-height: 50px;
-  padding: 12px;
+/* ===== 當前字幕大字 ===== */
+.yt-sub-current {
+  min-height: 52px;
+  padding: 10px 14px;
   background: #16213e;
   border-radius: 8px;
-  font-size: 16px;
-  line-height: 1.5;
   text-align: center;
-  color: #666;
   flex-shrink: 0;
   transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
 }
 
-.yt-sub-demo-current.active {
+.yt-sub-current.active {
   background: linear-gradient(135deg, #1a1a4e, #2a1a4e);
-  color: #e8d5ff;
-  font-weight: 500;
   border: 1px solid #667eea44;
 }
 
+.yt-sub-current-primary {
+  font-size: 15px;
+  font-weight: 500;
+  color: #e8d5ff;
+  line-height: 1.4;
+  min-height: 0;
+}
+
+.yt-sub-current-secondary {
+  font-size: 13px;
+  color: #c084fc;
+  line-height: 1.4;
+  min-height: 0;
+}
+
 /* ===== 字幕清單 ===== */
-.yt-sub-demo-list {
+.yt-sub-list {
   flex: 1;
   overflow-y: auto;
   border-radius: 8px;
   background: #0f0f23;
 }
 
-.yt-sub-demo-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.yt-sub-demo-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.yt-sub-demo-list::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 3px;
-}
+.yt-sub-list::-webkit-scrollbar { width: 5px; }
+.yt-sub-list::-webkit-scrollbar-track { background: transparent; }
+.yt-sub-list::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 
 /* ===== 單條字幕 ===== */
-.yt-sub-demo-item {
+.yt-sub-item {
   display: flex;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 8px 12px;
   border-bottom: 1px solid #1a1a3e;
   cursor: pointer;
   transition: all 0.15s;
   align-items: flex-start;
 }
 
-.yt-sub-demo-item:hover {
+.yt-sub-item:hover {
   background: #1a1a3e;
   padding-left: 16px;
 }
 
-.yt-sub-demo-item.active {
-  background: linear-gradient(90deg, #667eea33, transparent);
+.yt-sub-item.active {
+  background: linear-gradient(90deg, #667eea22, transparent);
   border-left: 3px solid #667eea;
 }
 
-.yt-sub-demo-item.active .yt-sub-demo-text {
-  color: white;
-  font-weight: 500;
-}
-
-.yt-sub-demo-item.active .yt-sub-demo-time {
-  color: #667eea;
-}
-
-.yt-sub-demo-time {
-  font-size: 11px;
+.yt-sub-time {
+  font-size: 10px;
   color: #555;
-  min-width: 36px;
+  min-width: 32px;
   padding-top: 2px;
   font-family: 'SF Mono', 'Consolas', monospace;
   flex-shrink: 0;
 }
 
-.yt-sub-demo-text {
-  font-size: 13px;
-  color: #bbb;
+.yt-sub-item.active .yt-sub-time {
+  color: #667eea;
+}
+
+.yt-sub-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.yt-sub-text-primary {
+  font-size: var(--primary-fs, 13px);
+  color: #ccc;
   line-height: 1.4;
+}
+
+.yt-sub-item.active .yt-sub-text-primary {
+  color: white;
+  font-weight: 500;
+}
+
+.yt-sub-text-secondary {
+  font-size: var(--secondary-fs, 12px);
+  color: var(--secondary-color, #a855f7);
+  line-height: 1.35;
+  opacity: 0.85;
+}
+
+.yt-sub-current-secondary {
+  color: var(--secondary-color, #a855f7);
 }
