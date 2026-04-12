@@ -194,6 +194,81 @@ function parseSubtitleText(text, fmt) {
 
 ---
 
+## 字幕翻譯流程
+
+### 路徑 A — YouTube 內建翻譯（`translationProvider = 'ytlang'`）
+
+**觸發條件**：副字幕語言在影片中沒有原生 track（或選擇強制翻譯 `tlang:lang`），且 provider 設定為 `ytlang`。
+
+**流程**：
+```
+autoLoadSubtitles()
+  └→ loadSubtitle(base track, 'secondary', targetLang)   // content.js ~847
+      └→ postMessage YT_SUBTITLE_DEMO_FETCH
+          └→ fetchSubtitle() [inject.js ~330]
+              └→ buildUrl(baseUrl, tlang)                // 加 &fmt=json3&tlang=zh-TW
+                  └→ fetch 一次，YouTube 伺服器端翻譯整份字幕
+                      └→ dispatchSubtitle() → scSet() → sessionStorage 快取
+```
+
+**特性**：
+- **一次 API 呼叫**取得全片翻譯字幕，速度快
+- 快取 key：`yt-sub-sc:VIDEO_ID:targetLang`（sessionStorage，頁面會話有效）
+- 已有 `looksLikeCJK()` 驗證：若 YouTube 翻譯失敗回傳原文，不快取、送錯誤訊息
+
+---
+
+### 路徑 B — 外部 Google 翻譯（`translationProvider = 'google'`）
+
+**觸發條件**：provider 設定為 `google`，且副字幕無原生 track。
+
+**流程**：
+```
+autoLoadSubtitles()
+  └→ pendingTranslation = { targetLang }
+      └→（等 primary 字幕載完）
+          └→ translateAndSetSecondary(primarySubtitles, targetLang)  // content.js ~1376
+              ├─ 時間視窗：只翻當前播放位置 + 30 分鐘內的字幕
+              ├─ 批次大小：8 句一批，批間延遲 400ms
+              ├─ 每句各自呼叫 Google Translate API（client=gtx，免費無驗證）
+              │   URL: translate.googleapis.com/translate_a/single?client=gtx&sl=auto&dt=t&tl=lang&q=TEXT
+              ├─ 每句翻完立即 patchSubtitleItem()（逐條更新 DOM，不重建整個列表）
+              └─ 翻完後存入 translationCache（記憶體，上限 10 部影片）
+
+scheduleNextTranslationBatch()
+  └→ 監視播放位置，距已翻邊界 < 5 分鐘時觸發翻下一個 30 分鐘視窗
+```
+
+**特性**：
+- **逐句順序呼叫 Google API**（無並行），N 句 ≈ N × (網路延遲 + 批間等待)
+- 每批 8 句後等 400ms（防止被限流）
+- 翻譯結果只存記憶體（`translationCache`），**頁面重整後需重翻**
+- 狀態欄即時顯示進度（`翻譯中 5/20`）
+
+---
+
+### 快取對比
+
+| 快取層 | 路徑 A | 路徑 B |
+|--------|--------|--------|
+| sessionStorage | ✅（跨刷新有效） | ❌ |
+| 記憶體 | ✅（`subtitleCache`） | ✅（`translationCache`） |
+| 快取 key | `videoId:lang` | `videoId:lang` |
+| 快取上限 | 20 條影片 | 10 部影片 |
+
+---
+
+### 已知瓶頸 / 可優化空間
+
+| 瓶頸 | 描述 | 可能方向 |
+|------|------|---------|
+| 路徑 B 逐句串行 | 每句各自等待 API 回應，長片耗時 O(n) | 改為批次多句合併請求（Google API 支援長 `q=` 參數，用分隔符拼接）|
+| 路徑 B 不持久化 | 頁面重整後整片重翻 | 翻譯結果存 sessionStorage（注意 quota 限制）|
+| 路徑 B 批間固定 400ms | 不論 API 快慢都等 | 改為動態等待（上一批完成後直接啟動下一批）|
+| 路徑 A 翻譯驗證 | 只在 path 3 驗證，path 0/1 命中舊快取時已修正 | ✅ 已修正（2026-04-12）|
+
+---
+
 ## 踩過的坑
 
 | 坑 | 原因 | 解法 |
@@ -204,6 +279,9 @@ function parseSubtitleText(text, fmt) {
 | 字幕 fetch 空回應 | 缺少 SAPISIDHASH header | 從 SAPISID cookie 生成 auth token |
 | fetch 攔截沒捕到 | YouTube 播放器可能用 XHR | 同時攔截 fetch 和 XMLHttpRequest |
 | 縮小後展開看不到字幕 | transform + flex 重算問題 | 改用 `display: none` 折疊 body |
+| **選英文但顯示中文** | `&tlang=en` 翻譯靜默失敗，YouTube 直接回傳原文 CJK，inject.js 未驗證就存入 sessionStorage 並標記為「英文」；下次 sessionStorage 命中時吐出中文內容卻掛英文標籤 | Path 3 fetch 後以 `looksLikeCJK()` 驗證語言，不符則送錯誤訊息且**不快取**；Path 0 sessionStorage 命中後也做語言驗證，發現舊壞快取則先清除再重新 fetch |
+| **字幕找到但不載入（語言不存在）** | `autoLoadSubtitles` 用 `settings.primaryLang`（如 `'en'`）在影片 tracks 中找對應 track，找不到時 `findPrimaryTrack` 回傳 `null`，`loadSubtitle` 完全沒被呼叫，字幕靜默不載 | `renderLanguages` 偵測偏好語言不在此影片 tracks 中（`anyMatched=false`），臨時更新 runtime `settings.primaryLang/primaryVssId` 為第一個可用 track（**不呼叫 `saveSettings()`**，不污染跨影片偏好）；dropdown 同步選中第一個 option；`autoLoadSubtitles` 額外保留 fallback 鏈：手動字幕 → `tracks[0]` |
+| **生字本「當前影片」換頁不更新** | SPA 導航時 MutationObserver 重置字幕資料但沒呼叫 `renderWordbook()`，面板繼續顯示上一部影片的單字 | URL 變化分支補一行：若生字本面板開著則呼叫 `renderWordbook()`（`renderWordbook` 只讀 `location.search` 和 `chrome.storage`，不依賴被清空的字幕變數，安全） |
 
 ---
 

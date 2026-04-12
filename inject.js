@@ -339,9 +339,16 @@
     // ── 路徑零：sessionStorage 持久快取 ──────────────────────────
     const scCached = scGet(videoId, languageCode);
     if (scCached) {
-      console.log('[YT-SUB] sessionStorage 命中 key=' + cacheKey);
-      window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', data: null, parsed: scCached, error: null, tag }, '*');
-      return;
+      // 驗證快取內容語言是否與請求一致（防止之前錯誤快取的中文被當作英文回傳）
+      const cachedSample = sampleParsedText(scCached);
+      if (!isCJKLanguage(languageCode) && looksLikeCJK(cachedSample)) {
+        console.warn('[YT-SUB] sessionStorage 快取語言不符（請求=' + languageCode + '，內容為 CJK），清除並重新 fetch');
+        try { sessionStorage.removeItem(scKey(videoId, languageCode)); } catch (e) {}
+      } else {
+        console.log('[YT-SUB] sessionStorage 命中 key=' + cacheKey);
+        window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', data: null, parsed: scCached, error: null, tag }, '*');
+        return;
+      }
     }
 
     // ── 路徑一：快取（YouTube 播放器已自動 fetch 過）──────────────
@@ -456,6 +463,12 @@
 
       if (!text || text.length < 10) {
         window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', error: `字幕回應為空 (status=${response.status})`, tag }, '*');
+        return;
+      }
+      // 驗證 &tlang= 翻譯是否成功：若請求 Latin 語言但回傳 CJK，代表 YouTube 翻譯功能不支援此影片
+      if (!isCJKLanguage(languageCode) && looksLikeCJK(text)) {
+        console.warn('[YT-SUB] &tlang=' + languageCode + ' 翻譯失敗，YouTube 回傳原文（CJK），不快取');
+        window.postMessage({ type: 'YT_SUBTITLE_DEMO_SUBTITLE_DATA', error: `此影片不支援翻譯為「${langName(languageCode)}」字幕（YouTube 翻譯功能不適用於此影片）`, tag }, '*');
         return;
       }
       dispatchSubtitle(text, 'json3', videoId, languageCode, tag);
@@ -592,6 +605,29 @@
         t: e.segs.map(s => s.utf8 || '').join('').trim(),
       }))
       .filter(e => e.t.length > 0);
+  }
+
+  // ===== 字幕語言驗證（防止 tlang 翻譯靜默失敗）=====
+
+  // 判斷語言碼是否為 CJK 系（中/日/韓）
+  function isCJKLanguage(code) {
+    return /^(zh|ja|ko)/i.test(code || '');
+  }
+
+  // 判斷文字是否含大量 CJK 字元（比例 > 20%）；涵蓋中日韓及 CJK 相容漢字
+  function looksLikeCJK(text) {
+    if (!text || text.length < 10) return false;
+    const cjk = (text.match(/[\u3000-\u9fff\uac00-\ud7af\u3040-\u30ff\uf900-\ufaff]/g) || []).length;
+    return cjk / text.length > 0.2;
+  }
+
+  // 語言代碼轉用戶友善名稱
+  const LANG_NAME = { en:'英文', fr:'法文', de:'德文', es:'西班牙文', pt:'葡萄牙文', it:'義大利文', nl:'荷蘭文', ru:'俄文', ar:'阿拉伯文', hi:'印地文' };
+  function langName(code) { return LANG_NAME[code] || code; }
+
+  // 從已解析的字幕陣列取樣文字
+  function sampleParsedText(parsed) {
+    return (parsed || []).slice(0, 8).map(e => e.t).join(' ');
   }
 
   // ===== 監聽 content script 的請求 =====

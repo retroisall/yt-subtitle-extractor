@@ -6,6 +6,7 @@
   // ===== 狀態 =====
   let trackList = [];
   let primarySubtitles = [];
+  let _rawPrimarySubtitles = []; // 未延長的原始字幕（供設定切換時重算用）
   let secondarySubtitles = [];
   let syncInterval = null;
   let injected = false;
@@ -81,6 +82,8 @@
       translationProvider: 'ytlang',  // ytlang | google
       wordHover:      true,   // 單字 hover 高亮
       wordSpeak:      true,   // 點擊單字朗讀
+      extensionEnabled:  true, // 套件整體開關
+      extendSubtitles:   true, // 延長字幕顯示（填滿字幕間的空白間隔）
     };
   }
 
@@ -111,7 +114,9 @@
         <span class="yt-sub-title">字幕提取器</span>
         <div class="yt-sub-header-btns">
           <button class="yt-sub-icon-btn" id="yt-sub-refresh-btn" title="重新載入字幕">↻</button>
+          <button class="yt-sub-icon-btn" id="yt-sub-wordbook-btn" title="生字本">★</button>
           <button class="yt-sub-icon-btn" id="yt-sub-settings-btn" title="設定">⚙</button>
+          <button class="yt-sub-icon-btn" id="yt-sub-power-btn" title="關閉翻譯">⏻</button>
           <button class="yt-sub-icon-btn" id="yt-sub-toggle-btn">▲</button>
         </div>
       </div>
@@ -236,8 +241,29 @@
                 <span class="yt-sub-switch-slider"></span>
               </label>
             </div>
+            <div class="yt-sub-settings-row">
+              <span class="yt-sub-settings-label">延長字幕顯示</span>
+              <label class="yt-sub-switch">
+                <input type="checkbox" id="yt-sub-extend-subs">
+                <span class="yt-sub-switch-slider"></span>
+              </label>
+            </div>
           </div>
 
+        </div>
+
+        <!-- 生字本面板 -->
+        <div class="yt-sub-wordbook" id="yt-sub-wordbook" style="display:none">
+          <div class="yt-sub-wordbook-toolbar">
+            <span class="yt-sub-wordbook-count" id="yt-sub-wordbook-count">0 個單字</span>
+            <select class="yt-sub-select yt-sub-wordbook-sort" id="yt-sub-wordbook-sort">
+              <option value="current-video">當前影片</option>
+              <option value="date-desc">最近加入</option>
+              <option value="count-desc">查詢最多</option>
+              <option value="alpha">字母順序</option>
+            </select>
+          </div>
+          <div class="yt-sub-wordbook-list" id="yt-sub-wordbook-list"></div>
         </div>
 
         <div class="yt-sub-status" id="yt-sub-status">載入中...</div>
@@ -252,6 +278,11 @@
     `;
     document.body.appendChild(sidebar);
 
+    // 若套件為停用狀態，隱藏 body（header 仍可見供重新開啟）
+    if (!settings.extensionEnabled) {
+      document.getElementById('yt-sub-body').style.display = 'none';
+    }
+
     // 收合 / 展開
     document.getElementById('yt-sub-toggle-btn').addEventListener('click', function () {
       sidebar.classList.toggle('collapsed');
@@ -265,7 +296,8 @@
     document.getElementById('yt-sub-refresh-btn').addEventListener('click', () => {
       if (translationJob) { translationJob.cancelled = true; translationJob = null; }
       if (_nextBatchTimer) { clearTimeout(_nextBatchTimer); _nextBatchTimer = null; }
-      primarySubtitles  = [];
+      primarySubtitles     = [];
+      _rawPrimarySubtitles = [];
       secondarySubtitles = [];
       trackList = [];
       applyOverlay(); // 無字幕，撤掉 overlay 並恢復原生字幕
@@ -283,11 +315,34 @@
       window.postMessage({ type: 'YT_SUBTITLE_DEMO_REQUEST' }, '*');
     });
 
+    // 套件開關
+    const powerBtn = document.getElementById('yt-sub-power-btn');
+    powerBtn.classList.toggle('power-off', !settings.extensionEnabled);
+    powerBtn.addEventListener('click', toggleExtension);
+
     // 設定面板開關
     document.getElementById('yt-sub-settings-btn').addEventListener('click', () => {
-      const panel = document.getElementById('yt-sub-settings');
-      panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+      const settingsPanel = document.getElementById('yt-sub-settings');
+      const wbPanel = document.getElementById('yt-sub-wordbook');
+      const opening = settingsPanel.style.display === 'none';
+      settingsPanel.style.display = opening ? 'flex' : 'none';
+      if (opening) wbPanel.style.display = 'none'; // 互斥
     });
+
+    // 生字本面板開關
+    document.getElementById('yt-sub-wordbook-btn').addEventListener('click', () => {
+      const wbPanel = document.getElementById('yt-sub-wordbook');
+      const settingsPanel = document.getElementById('yt-sub-settings');
+      const opening = wbPanel.style.display === 'none';
+      wbPanel.style.display = opening ? 'block' : 'none';
+      if (opening) {
+        settingsPanel.style.display = 'none'; // 互斥
+        renderWordbook();
+      }
+    });
+
+    // 生字本排序變更時重新渲染
+    document.getElementById('yt-sub-wordbook-sort').addEventListener('change', () => renderWordbook());
 
     // ── 語言設定（即時生效）────────────────────────────────────
     const dualToggle = document.getElementById('yt-sub-dual-toggle');
@@ -298,7 +353,7 @@
       settings.dualEnabled = dualToggle.checked;
       saveSettings();
       updateSecondaryRowOpacity();
-      primarySubtitles = [];
+      primarySubtitles = []; _rawPrimarySubtitles = [];
       secondarySubtitles = [];
       autoLoadSubtitles(trackList);
     });
@@ -309,7 +364,7 @@
       settings.primaryVssId = vssId;
       settings.primaryLang  = track?.languageCode || vssId;
       saveSettings();
-      primarySubtitles = [];
+      primarySubtitles = []; _rawPrimarySubtitles = [];
       if (track) loadSubtitle(track, 'primary');
       highlightActiveLangs();
     });
@@ -332,7 +387,7 @@
         settings.primaryVssId = null;
       }
       saveSettings();
-      primarySubtitles = [];
+      primarySubtitles = []; _rawPrimarySubtitles = [];
       secondarySubtitles = [];
       renderLanguages(trackList); // 重新渲染（過濾後只顯示選定的 ASR）
     });
@@ -417,6 +472,20 @@
     wordSpeakEl.addEventListener('change', () => {
       settings.wordSpeak = wordSpeakEl.checked;
       saveSettings();
+    });
+
+    const extendSubsEl = document.getElementById('yt-sub-extend-subs');
+    extendSubsEl.checked = settings.extendSubtitles;
+    extendSubsEl.addEventListener('change', () => {
+      settings.extendSubtitles = extendSubsEl.checked;
+      saveSettings();
+      // 已有字幕時立即重新套用（不重新 fetch，直接從原始資料重算）
+      if (_rawPrimarySubtitles.length) {
+        primarySubtitles = settings.extendSubtitles
+          ? extendSubtitleDurations(_rawPrimarySubtitles)
+          : [..._rawPrimarySubtitles];
+        renderSubtitleList();
+      }
     });
 
     // 套用初始顯示設定
@@ -545,11 +614,26 @@
       settings.primaryLang  = track.languageCode;
       settings.primaryVssId = track.vssId || null;
       saveSettings();
-      primarySubtitles = [];
+      primarySubtitles = []; _rawPrimarySubtitles = [];
       const settingsSel = document.getElementById('yt-sub-primary-select');
       if (settingsSel) settingsSel.value = vssId;
       loadSubtitle(track, 'primary');
     });
+    // 若設定語言在此影片中找不到，選中第一個 option 並臨時更新 runtime 設定
+    // （不呼叫 saveSettings，保留使用者原始偏好語言給下一部影片使用）
+    const anyMatched = displayTracks.some(t =>
+      settings.primaryVssId
+        ? (t.vssId || t.languageCode) === settings.primaryVssId
+        : t.languageCode === settings.primaryLang
+    );
+    if (!anyMatched && displayTracks.length > 0) {
+      const first = displayTracks[0];
+      langDropdown.options[0].selected = true;
+      // 臨時更新，使 autoLoadSubtitles 的 findPrimaryTrack 能找到正確 track
+      settings.primaryLang  = first.languageCode;
+      settings.primaryVssId = first.vssId || null;
+    }
+
     container.appendChild(langDropdown);
 
     fillLangSelect('yt-sub-primary-select', displayTracks, settings.primaryVssId || settings.primaryLang, false);
@@ -687,7 +771,8 @@
   // ===== 自動載入主、副字幕 =====
   function autoLoadSubtitles(tracks) {
     if (!tracks.length) return;
-    const primary = findPrimaryTrack(tracks);
+    // 找偏好語言的 track；若仍找不到（非從 renderLanguages 呼叫的路徑），fallback 到第一條
+    const primary = findPrimaryTrack(tracks) || tracks.find(t => !(t.vssId||'').startsWith('a.')) || tracks[0] || null;
     if (primary) loadSubtitle(primary, 'primary');
 
     pendingTranslation = null;
@@ -802,7 +887,7 @@
 
       const primEl = document.createElement('div');
       primEl.className = 'yt-sub-text-primary';
-      buildTokenizedText(primEl, sub.text);
+      buildTokenizedText(primEl, sub.text, sub.startTime);
       texts.appendChild(primEl);
 
       if (settings.dualEnabled && secSub) {
@@ -877,18 +962,30 @@
     });
   }
 
+  // 詞頻分級對應顯示文字
+  const TIER_LABEL = { basic: '基礎', common: '常用', advanced: '進階' };
+  const TIER_CLASS = { basic: 'tier-basic', common: 'tier-common', advanced: 'tier-advanced' };
+
   function renderPopupContent(popup, result) {
     const zhLoading = result.translating ? `<span class="yt-sub-popup-translating">翻譯中...</span>` : '';
+    const tierHtml = result.tier && TIER_CLASS[result.tier]
+      ? `<span class="yt-sub-tier-badge ${TIER_CLASS[result.tier]}">${TIER_LABEL[result.tier]}</span>`
+      : '';
     const synHtml = result.synonyms.length
       ? `<div class="yt-sub-popup-section-title">近似詞</div>
          <div class="yt-sub-popup-synonyms">${result.synonyms.map(s =>
            `<span class="yt-sub-popup-syn"><span class="yt-sub-popup-syn-en">${escapeHtml(s.en)}</span>${s.zh ? `<span class="yt-sub-popup-syn-zh">${escapeHtml(s.zh)}</span>` : (result.translating ? '<span class="yt-sub-popup-syn-zh">...</span>' : '')}</span>`
          ).join('')}</div>`
       : '';
+    const wordZhHtml = result.wordZh
+      ? `<div class="yt-sub-popup-word-zh">${escapeHtml(result.wordZh)}</div>`
+      : (result.translating ? `<div class="yt-sub-popup-word-zh yt-sub-popup-translating">...</div>` : '');
     popup.innerHTML = `
       <div class="yt-sub-popup-word">${escapeHtml(result.word)}
         ${result.phonetic ? `<span class="yt-sub-popup-phonetic">${escapeHtml(result.phonetic)}</span>` : ''}
+        ${tierHtml}
       </div>
+      ${wordZhHtml}
       ${result.partOfSpeech ? `<div class="yt-sub-popup-pos">${result.partOfSpeech}</div>` : ''}
       <div class="yt-sub-popup-def">• ${escapeHtml(result.definition)}</div>
       ${result.definitionZh ? `<div class="yt-sub-popup-def-zh">${escapeHtml(result.definitionZh)}</div>` : zhLoading}
@@ -912,10 +1009,33 @@
     dictCache[word] = value;
   }
 
+  // 透過 Datamuse API 取得單字詞頻分級
+  // 回傳 'basic'（基礎）| 'common'（常用）| 'advanced'（進階）| null（無資料）
+  async function fetchWordTier(word) {
+    try {
+      const resp = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(word)}&md=f&max=1`);
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      if (!data.length || data[0].word.toLowerCase() !== word.toLowerCase()) return null;
+      const freqTag = data[0].tags?.find(t => t.startsWith('f:'));
+      if (!freqTag) return null;
+      const freq = parseFloat(freqTag.slice(2));
+      if (freq > 100) return 'basic';
+      if (freq >= 10) return 'common';
+      return 'advanced';
+    } catch {
+      return null;
+    }
+  }
+
   async function lookupWord(word) {
     if (dictCache[word] !== undefined) return dictCache[word];
     try {
-      const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+      // 字典與詞頻並行請求，互不阻塞
+      const [resp, tier] = await Promise.all([
+        fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`),
+        fetchWordTier(word),
+      ]);
       if (!resp.ok) { dictCacheSet(word, null); return null; }
       const data = await resp.json();
       const entry = data[0];
@@ -928,19 +1048,23 @@
         phonetic: entry.phonetic || entry.phonetics?.find(p => p.text)?.text || '',
         partOfSpeech: firstMeaning?.partOfSpeech || '',
         definition: firstDef?.definition || '',
-        definitionZh: '',   // 稍後非同步填入
+        wordZh:       '',   // 單字本身的通用中文翻譯（miracle → 奇蹟）
+        definitionZh: '',   // 定義的中文翻譯
         example: firstDef?.example || '',
         synonyms: synonyms.map(s => ({ en: s, zh: '' })),
         translating: true,  // 翻譯進行中
+        tier,               // 詞頻分級
       };
       dictCacheSet(word, result);
 
-      // 非同步翻譯，完成後更新快取並 patch popup DOM
-      const toTranslate = [firstDef?.definition || '', ...synonyms].filter(Boolean);
-      if (toTranslate.length) {
-        Promise.all(toTranslate.map(t => translateGoogle(t, 'zh-TW').catch(() => ''))).then(translations => {
-          result.definitionZh = translations[0] || '';
-          result.synonyms = synonyms.map((s, i) => ({ en: s, zh: translations[i + 1] || '' }));
+      // 非同步翻譯：索引固定為 0=單字, 1=定義, 2+=近似詞
+      // 不使用 filter(Boolean)，保留空字串佔位，確保索引不偏移
+      const toTranslate = [word, firstDef?.definition || '', ...synonyms];
+      if (word || firstDef?.definition || synonyms.length) {
+        Promise.all(toTranslate.map(t => t ? translateGoogle(t, 'zh-TW').catch(() => '') : Promise.resolve(''))).then(translations => {
+          result.wordZh       = translations[0] || '';
+          result.definitionZh = translations[1] || '';
+          result.synonyms = synonyms.map((s, i) => ({ en: s, zh: translations[i + 2] || '' }));
           result.translating = false;
           // 若 popup 仍顯示此單字，更新 DOM
           const popup = document.getElementById('yt-sub-word-popup');
@@ -957,6 +1081,292 @@
       dictCacheSet(word, null);
       return null;
     }
+  }
+
+  // ===== 生字本 =====
+  const SAVED_WORDS_KEY = 'yt_sub_saved_words';
+
+  // 儲存單字到本地生字本；sentenceContext 為完整字幕句，startTime 為句子時間軸（秒）
+  function saveWord(word, anchor, sentenceContext, startTime) {
+    const hasCachedLookup  = dictCache[word] !== undefined;
+    const cached           = hasCachedLookup ? dictCache[word] : null;
+    const cachedNotFound   = hasCachedLookup && cached === null; // 查過但字典無此字
+    const cachedTier       = cached?.tier ?? null;
+    const cachedWordZh     = cached?.wordZh || '';
+    const cachedZh         = cached?.definitionZh || '';
+    const videoId    = new URLSearchParams(location.search).get('v') || '';
+
+    chrome.storage.local.get(SAVED_WORDS_KEY, data => {
+      const saved = data[SAVED_WORDS_KEY] || {};
+      const alreadySaved = !!saved[word];
+      if (!alreadySaved) {
+        saved[word] = {
+          word,
+          addedAt:      Date.now(),
+          count:        1,
+          tier:         cachedTier,
+          tierFetched:  hasCachedLookup,
+          noDefinition: cachedNotFound,   // true = 字典查無此字，不顯示查詢按鈕
+          wordZh:       cachedWordZh,     // 單字通用中文（危險、奇蹟...）
+          definitionZh: cachedZh,
+          context:      sentenceContext || '',
+          contextZh:    '',        // 非同步翻譯後填入
+          videoId,
+          startTime:    startTime ?? 0,
+        };
+      } else {
+        saved[word].count = (saved[word].count || 1) + 1;
+        if (!saved[word].tier && cachedTier) { saved[word].tier = cachedTier; saved[word].tierFetched = true; }
+        if (!saved[word].wordZh && cachedWordZh) saved[word].wordZh = cachedWordZh;
+        if (!saved[word].definitionZh && cachedZh) saved[word].definitionZh = cachedZh;
+        if (sentenceContext) {
+          // 只有例句真的變了才重置 contextZh，避免連續右鍵重複打翻譯 API
+          if (saved[word].context !== sentenceContext) saved[word].contextZh = '';
+          saved[word].context   = sentenceContext;
+          saved[word].videoId   = videoId;
+          saved[word].startTime = startTime ?? 0;
+        }
+      }
+      chrome.storage.local.set({ [SAVED_WORDS_KEY]: saved }, () => {
+        if (chrome.runtime.lastError) {
+          console.error('[YT-SUB] storage.set 失敗:', chrome.runtime.lastError.message);
+          return;
+        }
+        if (anchor) anchor.classList.add('word-saved');
+        showSaveToast(word, alreadySaved);
+        // 面板開著時立即更新列表
+        if (document.getElementById('yt-sub-wordbook')?.style.display !== 'none') {
+          renderWordbook();
+        }
+        // 非同步翻譯例句，完成後寫回 storage 並重新渲染
+        if (sentenceContext && !saved[word].contextZh) {
+          translateGoogle(sentenceContext, 'zh-TW').then(zh => {
+            if (!zh) return;
+            chrome.storage.local.get(SAVED_WORDS_KEY, d2 => {
+              if (chrome.runtime.lastError) return;
+              const s2 = d2[SAVED_WORDS_KEY] || {};
+              if (s2[word]) {
+                s2[word].contextZh = zh;
+                chrome.storage.local.set({ [SAVED_WORDS_KEY]: s2 }, () => {
+                  if (document.getElementById('yt-sub-wordbook')?.style.display !== 'none') {
+                    renderWordbook();
+                  }
+                });
+              }
+            });
+          }).catch(() => {});
+        }
+        // 若無快取，背景呼叫 lookupWord 補齊 tier 與中文解釋
+        if (!hasCachedLookup) {
+          lookupWord(word).then(result => {
+            if (!result) {
+              // 字典查無此字：標記 noDefinition，避免生字本顯示查詢功能
+              chrome.storage.local.get(SAVED_WORDS_KEY, d2 => {
+                if (chrome.runtime.lastError) return;
+                const s2 = d2[SAVED_WORDS_KEY] || {};
+                if (s2[word] && !s2[word].noDefinition) {
+                  s2[word].noDefinition = true;
+                  s2[word].tierFetched  = true;
+                  chrome.storage.local.set({ [SAVED_WORDS_KEY]: s2 }, () => {
+                    if (document.getElementById('yt-sub-wordbook')?.style.display !== 'none') {
+                      renderWordbook();
+                    }
+                  });
+                }
+              });
+              return;
+            }
+            // 等待非同步翻譯完成後再寫入 storage（最多等 12 秒，防止翻譯 API 失敗時無限輪詢）
+            let retries = 0;
+            const tryUpdate = () => {
+              if (result.translating && retries++ < 30) { setTimeout(tryUpdate, 400); return; }
+              chrome.storage.local.get(SAVED_WORDS_KEY, d2 => {
+                if (chrome.runtime.lastError) return;
+                const s2 = d2[SAVED_WORDS_KEY] || {};
+                if (!s2[word]) return;
+                s2[word].tier         = result.tier || null;
+                s2[word].tierFetched  = true;
+                if (!s2[word].wordZh)       s2[word].wordZh       = result.wordZh       || '';
+                if (!s2[word].definitionZh) s2[word].definitionZh = result.definitionZh || '';
+                chrome.storage.local.set({ [SAVED_WORDS_KEY]: s2 }, () => {
+                  if (document.getElementById('yt-sub-wordbook')?.style.display !== 'none') {
+                    renderWordbook();
+                  }
+                });
+              });
+            };
+            tryUpdate();
+          });
+        }
+      });
+    });
+  }
+
+  // 顯示儲存回饋 toast
+  function showSaveToast(word, alreadySaved) {
+    let toast = document.getElementById('yt-sub-save-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'yt-sub-save-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = alreadySaved ? `「${word}」已在生字本` : `「${word}」已加入生字本`;
+    toast.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('show'), 1800);
+  }
+
+  // ===== 生字本渲染 =====
+
+  // 讀取生字本並渲染到面板
+  function renderWordbook() {
+    chrome.storage.local.get(SAVED_WORDS_KEY, data => {
+      const saved = data[SAVED_WORDS_KEY] || {};
+      const words = Object.values(saved);
+      const countEl = document.getElementById('yt-sub-wordbook-count');
+      const listEl  = document.getElementById('yt-sub-wordbook-list');
+      const sortEl  = document.getElementById('yt-sub-wordbook-sort');
+      if (!listEl || !countEl) return;
+
+      // 過濾 + 排序
+      const sortKey = sortEl?.value || 'current-video';
+      const currentVideoId = new URLSearchParams(location.search).get('v') || '';
+
+      let displayed = words;
+      if (sortKey === 'current-video') {
+        displayed = words.filter(w => w.videoId && w.videoId === currentVideoId);
+      } else if (sortKey === 'date-desc') {
+        displayed = [...words].sort((a, b) => b.addedAt - a.addedAt);
+      } else if (sortKey === 'count-desc') {
+        displayed = [...words].sort((a, b) => b.count - a.count);
+      } else if (sortKey === 'alpha') {
+        displayed = [...words].sort((a, b) => a.word.localeCompare(b.word));
+      }
+
+      const totalLabel = sortKey === 'current-video'
+        ? (displayed.length ? `當前影片 ${displayed.length} 個單字` : '此影片尚未儲存任何單字')
+        : (words.length ? `共 ${words.length} 個單字` : '尚未儲存任何單字');
+      countEl.textContent = totalLabel;
+      listEl.innerHTML = '';
+
+      if (!displayed.length) return;
+
+      displayed.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'yt-sub-wb-row';
+
+        const tierHtml = item.tier && TIER_CLASS[item.tier]
+          ? `<span class="yt-sub-tier-badge ${TIER_CLASS[item.tier]}">${TIER_LABEL[item.tier]}</span>`
+          : '';
+        const ctxHtml = item.context
+          ? `<button class="yt-sub-wb-ctx" title="查看原句">≡</button>`
+          : '';
+        row.innerHTML = `
+          <span class="yt-sub-wb-word${item.noDefinition ? ' no-def' : ''}">${escapeHtml(item.word)}</span>
+          ${item.wordZh ? `<span class="yt-sub-wb-zh">${escapeHtml(item.wordZh)}</span>` : ''}
+          ${tierHtml}
+          ${item.count > 1 ? `<span class="yt-sub-wb-meta">×${item.count}</span>` : ''}
+          ${ctxHtml}
+          <button class="yt-sub-wb-del" data-word="${escapeHtml(item.word)}" title="刪除">×</button>
+        `;
+
+        // 點擊單字查字典（字典查無此字時不掛 listener）
+        if (!item.noDefinition) {
+          row.querySelector('.yt-sub-wb-word').addEventListener('click', e => {
+            showWordPopup(item.word, e.target);
+          });
+        }
+
+        // 點擊原句按鈕
+        if (item.context) {
+          row.querySelector('.yt-sub-wb-ctx').addEventListener('click', e => {
+            e.stopPropagation();
+            showSentencePopup(item, e.target);
+          });
+        }
+
+        // 刪除單字
+        row.querySelector('.yt-sub-wb-del').addEventListener('click', e => {
+          e.stopPropagation();
+          deleteWord(item.word, row);
+        });
+
+        listEl.appendChild(row);
+      });
+    });
+  }
+
+  // 從生字本刪除單字
+  function deleteWord(word, rowEl) {
+    chrome.storage.local.get(SAVED_WORDS_KEY, data => {
+      const saved = data[SAVED_WORDS_KEY] || {};
+      delete saved[word];
+      chrome.storage.local.set({ [SAVED_WORDS_KEY]: saved }, () => {
+        rowEl.classList.add('yt-sub-wb-row-removing');
+        setTimeout(() => renderWordbook(), 250);
+      });
+    });
+  }
+
+  // 顯示存字時的完整例句（雙語）與跳轉按鈕
+  function showSentencePopup(item, anchor) {
+    let popup = document.getElementById('yt-sub-sentence-popup');
+    if (!popup) {
+      popup = document.createElement('div');
+      popup.id = 'yt-sub-sentence-popup';
+      document.body.appendChild(popup);
+    }
+    // 高亮句子中的目標單字（先跳脫 RegExp 特殊字元）
+    const safeWord = escapeHtml(item.word).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const highlighted = escapeHtml(item.context).replace(
+      new RegExp(`(${safeWord})`, 'gi'),
+      '<mark class="yt-sub-sent-mark">$1</mark>'
+    );
+    const timeLabel = formatTime(item.startTime || 0);
+    const currentVideoId = new URLSearchParams(location.search).get('v') || '';
+    const isSameVideo = item.videoId && item.videoId === currentVideoId;
+
+    popup.innerHTML = `
+      <div class="yt-sub-sent-en">${highlighted}</div>
+      ${item.contextZh ? `<div class="yt-sub-sent-zh">${escapeHtml(item.contextZh)}</div>` : ''}
+      <div class="yt-sub-sent-footer">
+        <button class="yt-sub-sent-seek" title="${isSameVideo ? '跳轉到此句' : '在 YouTube 開啟'}">
+          ${isSameVideo ? '▶' : '↗'} ${timeLabel}
+        </button>
+      </div>
+    `;
+    popup.style.display = 'block';
+
+    // 定位：以 sidebar 為基準居中
+    const sidebar = document.getElementById('yt-sub-demo-sidebar');
+    const sbRect  = sidebar?.getBoundingClientRect();
+    const popupW  = 280;
+    const left       = sbRect ? sbRect.left + (sbRect.width - popupW) / 2 : window.innerWidth - popupW - 16;
+    const anchorRect = anchor.getBoundingClientRect();
+    const topBelow   = anchorRect.bottom + 6;
+    const popupH     = 120; // 預估高度，避免超出視窗底部
+    const top        = topBelow + popupH > window.innerHeight ? anchorRect.top - popupH - 6 : topBelow;
+    popup.style.left = Math.max(8, Math.min(left, window.innerWidth - popupW - 8)) + 'px';
+    popup.style.top  = Math.max(8, top) + 'px';
+
+    // 跳轉按鈕邏輯
+    popup.querySelector('.yt-sub-sent-seek').addEventListener('click', e => {
+      e.stopPropagation();
+      if (isSameVideo) {
+        seekTo(item.startTime || 0);
+      } else {
+        window.open(`https://www.youtube.com/watch?v=${item.videoId}&t=${Math.floor(item.startTime || 0)}s`, '_blank');
+      }
+      popup.style.display = 'none';
+    });
+
+    const close = e => {
+      if (!popup.contains(e.target) && e.target !== anchor) {
+        popup.style.display = 'none';
+        window.removeEventListener('click', close, true);
+      }
+    };
+    setTimeout(() => window.addEventListener('click', close, true), 50);
   }
 
   // ===== 外部翻譯 =====
@@ -1077,7 +1487,7 @@
   }
 
   // ===== 單字 Tokenize =====
-  function buildTokenizedText(container, text) {
+  function buildTokenizedText(container, text, startTime) {
     const tokens = text.split(/(\b[a-zA-Z'-]+\b)/);
     tokens.forEach(token => {
       if (/^[a-zA-Z'-]+$/.test(token) && token.length > 1) {
@@ -1086,10 +1496,18 @@
         span.textContent = token;
         span.addEventListener('click', e => {
           e.stopPropagation();
-          const clean = token.toLowerCase().replace(/['-]$/, '');
+          // 查字典時還原為原型（shining → shine），讓字典結果與生字本一致
+          const clean = lemmatize(token.toLowerCase().replace(/'s$/i, '').replace(/['-]$/, ''));
           if (settings.wordSpeak) speakWord(token);
           showWordPopup(clean, span);
         });
+        // 右鍵儲存單字到生字本（capture phase 搶先 YouTube handler，stopImmediatePropagation 防止後續 handler 干擾）
+        span.addEventListener('contextmenu', e => {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          const clean = lemmatize(token.toLowerCase().replace(/'s$/i, '').replace(/['-]$/, ''));
+          saveWord(clean, span, text, startTime); // text 為整句字幕，startTime 為句子時間軸
+        }, true);
         container.appendChild(span);
       } else {
         container.appendChild(document.createTextNode(token));
@@ -1224,7 +1642,7 @@
     document.getElementById('yt-sub-overlay')?.remove();
   }
 
-  function updateOverlay(primText, secText, primIdx) {
+  function updateOverlay(primText, secText, primIdx = -1) {
     const ovPrim = document.getElementById('yt-sub-ov-primary');
     const ovSec  = document.getElementById('yt-sub-ov-secondary');
     if (ovPrim) {
@@ -1232,7 +1650,7 @@
       if (ovPrim.dataset.text !== primText) {
         ovPrim.dataset.text = primText;
         ovPrim.innerHTML = '';
-        if (primText) buildTokenizedText(ovPrim, primText);
+        if (primText) buildTokenizedText(ovPrim, primText, primarySubtitles[primIdx]?.startTime ?? 0);
       }
     }
     if (ovSec) ovSec.textContent = secText || '';
@@ -1284,7 +1702,7 @@
         if (curPrimEl.dataset.text !== newText) {
           curPrimEl.dataset.text = newText;
           curPrimEl.innerHTML = '';
-          if (newText) buildTokenizedText(curPrimEl, newText);
+          if (newText) buildTokenizedText(curPrimEl, newText, primSub?.startTime ?? 0);
         }
       }
       if (curSecEl)  curSecEl.textContent  = secSub && settings.dualEnabled ? secSub.text : '';
@@ -1328,7 +1746,71 @@
     if (video) video.currentTime = time;
   }
 
+  // ===== 延長字幕顯示 =====
+  // 將每句字幕的結束時間延伸到下一句開始前（填滿字幕間的空白間隔）
+  // 不修改原陣列，回傳新陣列
+  function extendSubtitleDurations(subs) {
+    if (!subs.length) return subs;
+    return subs.map((sub, i) => {
+      const next = subs[i + 1];
+      if (!next) return sub; // 最後一句不延伸
+      const currentEnd = sub.startTime + sub.duration;
+      const gap = next.startTime - currentEnd;
+      if (gap <= 0) return sub; // 無間隔或已重疊，保留原始
+      // 延伸到下一句開始前 50ms（緩衝避免閃爍），但不縮短原始 duration
+      const extended = next.startTime - sub.startTime - 0.05;
+      return { ...sub, duration: Math.max(sub.duration, extended) };
+    });
+  }
+
   // ===== 工具 =====
+
+  function isVowel(c)     { return 'aeiou'.includes(c); }
+  function isConsonant(c) { return /^[a-z]$/.test(c) && !isVowel(c); }
+
+  // 英文詞形還原：將屈折形（shining/walked/runs）還原為原型（shine/walk/run）
+  function lemmatize(word) {
+    if (word.length <= 3) return word;
+
+    // -ied → -y（tried→try, carried→carry）
+    if (word.endsWith('ied') && word.length > 4) return word.slice(0, -3) + 'y';
+
+    // -ing（現在分詞/動名詞）
+    if (word.endsWith('ing') && word.length >= 5) {
+      const s = word.slice(0, -3);
+      // 重複字尾輔音：running→run, sitting→sit
+      if (s.length >= 2 && isConsonant(s.at(-1)) && s.at(-1) === s.at(-2))
+        return s.slice(0, -1);
+      // 字尾為「輔音-母音-輔音」模式，原形有被省略的 e：shining→shine, making→make
+      if (s.length >= 3 && isConsonant(s.at(-1)) && isVowel(s.at(-2)) && isConsonant(s.at(-3)))
+        return s + 'e';
+      // 一般情況：walking→walk, talking→talk
+      return s;
+    }
+
+    // -ed（過去式/過去分詞）
+    if (word.endsWith('ed') && word.length > 4) {
+      const s = word.slice(0, -2);
+      // 重複字尾輔音：stopped→stop, planned→plan
+      if (s.length >= 2 && isConsonant(s.at(-1)) && s.at(-1) === s.at(-2))
+        return s.slice(0, -1);
+      // 省略 e：loved→love, placed→place
+      if (s.length >= 3 && isConsonant(s.at(-1)) && isVowel(s.at(-2)) && isConsonant(s.at(-3)))
+        return s + 'e';
+      // 一般情況：walked→walk, looked→look
+      return s;
+    }
+
+    // -ies → -y（flies→fly, tries→try）
+    if (word.endsWith('ies') && word.length > 4) return word.slice(0, -3) + 'y';
+
+    // -s（複數/第三人稱，不處理 -es 避免 goes/does 等不規則形）
+    if (word.endsWith('s') && !word.endsWith('ss') && !word.endsWith('es') && word.length >= 4)
+      return word.slice(0, -1); // runs→run, eats→eat, cats→cat
+
+    return word;
+  }
+
   function formatTime(s) {
     return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   }
@@ -1365,7 +1847,8 @@
         : parseJson3(event.data.data);
 
       if (tag === 'primary') {
-        primarySubtitles = parsed;
+        _rawPrimarySubtitles = parsed;
+        primarySubtitles = settings.extendSubtitles ? extendSubtitleDurations(parsed) : parsed;
         applyOverlay(); // 有字幕了，啟用 overlay 並隱藏原生字幕
         if (statusEl) {
           const name = trackList.find(t => t.languageCode === settings.primaryLang)?.name || settings.primaryLang;
@@ -1394,7 +1877,8 @@
       lastUrl = location.href;
       if (translationJob) { translationJob.cancelled = true; translationJob = null; }
       if (_nextBatchTimer) { clearTimeout(_nextBatchTimer); _nextBatchTimer = null; }
-      primarySubtitles = [];
+      primarySubtitles     = [];
+      _rawPrimarySubtitles = [];
       secondarySubtitles = [];
       trackList = [];
       applyOverlay(); // 換頁時撤掉 overlay
@@ -1408,6 +1892,10 @@
       if (primCur) primCur.textContent = '';
       if (secCur)  secCur.textContent  = '';
       updateOverlay('', '');
+      // 生字本面板開著時，重新渲染以更新「當前影片」篩選
+      if (document.getElementById('yt-sub-wordbook')?.style.display !== 'none') {
+        renderWordbook();
+      }
     }
     // sidebar 消失時重建（YouTube SPA 有時會移除 DOM 元素）
     if (location.pathname.startsWith('/watch') && !document.getElementById('yt-sub-demo-sidebar')) init();
@@ -1420,6 +1908,31 @@
       updateCurrentLoopStyle();
     }
   });
+
+  // 切換整體啟用狀態（body 隱藏/顯示，header 常駐讓用戶可隨時重開）
+  function toggleExtension() {
+    settings.extensionEnabled = !settings.extensionEnabled;
+    saveSettings();
+
+    const btn  = document.getElementById('yt-sub-power-btn');
+    const body = document.getElementById('yt-sub-body');
+
+    if (settings.extensionEnabled) {
+      // 開啟：恢復 body，重新觸發字幕載入
+      if (body) body.style.display = '';
+      if (btn)  { btn.classList.remove('power-off'); btn.title = '關閉翻譯'; }
+      window.postMessage({ type: 'YT_SUBTITLE_DEMO_REQUEST' }, '*');
+    } else {
+      // 關閉：停止背景任務，隱藏 body（header 保留供重新開啟）
+      if (syncInterval) { clearInterval(syncInterval); syncInterval = null; }
+      const video = document.querySelector('video');
+      if (video && _seekHandler) { video.removeEventListener('seeked', _seekHandler); _seekHandler = null; }
+      if (translationJob) { translationJob.cancelled = true; translationJob = null; }
+      if (body) body.style.display = 'none';
+      if (btn)  { btn.classList.add('power-off'); btn.title = '開啟翻譯'; }
+      removeOverlay();
+    }
+  }
 
   // ===== 初始化 =====
   function init() {
