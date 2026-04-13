@@ -65,6 +65,7 @@
 
 .yt-sub-ball-dot.no-sub  { background: #ef4444; animation: pulse-red   1s ease-out 3 forwards; }
 .yt-sub-ball-dot.has-sub { background: #4ade80; animation: pulse-green  1s ease-out 3 forwards; }
+.yt-sub-ball-dot.idle    { background: #52525b; box-shadow: 0 0 4px rgba(82,82,91,.4); }
 
 /* ===== 側邊欄容器（wrapper 內 absolute）===== */
 #yt-sub-demo-sidebar {
@@ -1175,6 +1176,223 @@
   min-width: 44px;
   text-align: right;
   flex-shrink: 0;
+}
+
+/* ===== Onboarding ===== */
+.yt-sub-onboarding {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Top bar：step label + dots + progress bar */
+.yt-sub-ob-topbar {
+  padding: 18px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.yt-sub-ob-step-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.yt-sub-ob-step-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #71717a;
+  letter-spacing: 0.06em;
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.yt-sub-ob-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.yt-sub-ob-dot {
+  width: 20px;
+  height: 4px;
+  border-radius: 999px;
+  background: #27272a;
+  transition: background 0.25s;
+}
+
+.yt-sub-ob-dot.active {
+  background: #7c3aed;
+}
+
+.yt-sub-ob-progress-track {
+  height: 2px;
+  background: #18181b;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.yt-sub-ob-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #5b21b6, #7c3aed);
+  border-radius: 999px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Content */
+.yt-sub-ob-content {
+  padding: 20px 20px 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.yt-sub-ob-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fafafa;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+
+.yt-sub-ob-subtitle {
+  font-size: 13px;
+  color: #71717a;
+  line-height: 1.6;
+  margin-top: 4px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.yt-sub-ob-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
+}
+
+/* Language button */
+.yt-sub-ob-item {
+  width: 100%;
+  padding: 11px 14px;
+  background: #18181b;
+  border: 1.5px solid #27272a;
+  border-radius: 8px;
+  color: #d4d4d8;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.yt-sub-ob-item:hover:not(.selected) {
+  background: #1f1f23;
+  border-color: #3f3f46;
+  color: #fafafa;
+}
+
+.yt-sub-ob-item.selected {
+  background: rgba(124, 58, 237, 0.12);
+  border-color: #7c3aed;
+  color: #fafafa;
+}
+
+.yt-sub-ob-check {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid #3f3f46;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.yt-sub-ob-item.selected .yt-sub-ob-check {
+  background: #7c3aed;
+  border-color: #7c3aed;
+}
+
+.yt-sub-ob-lang-label { flex: 1; }
+
+.yt-sub-ob-lang-native {
+  font-size: 12px;
+  color: #52525b;
+  font-weight: 400;
+}
+
+.yt-sub-ob-item.selected .yt-sub-ob-lang-native {
+  color: #a78bfa;
+}
+
+/* Footer */
+.yt-sub-ob-footer {
+  padding: 14px 20px 18px;
+  border-top: 1px solid #18181b;
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.yt-sub-ob-btn-primary {
+  flex: 2;
+  padding: 11px 0;
+  background: #7c3aed;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.yt-sub-ob-btn-primary:hover { background: #6d28d9; }
+
+.yt-sub-ob-btn-secondary {
+  flex: 1;
+  padding: 11px 0;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+  color: #a1a1aa;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.yt-sub-ob-btn-secondary:hover { background: #3f3f46; }
+
+.yt-sub-ob-reset-btn {
+  padding: 4px 12px;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  color: #a1a1aa;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.yt-sub-ob-reset-btn:hover {
+  background: #3f3f46;
+  color: #fafafa;
 }
 
 /* ===== input ===== */
