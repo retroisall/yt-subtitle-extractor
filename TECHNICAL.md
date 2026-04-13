@@ -280,7 +280,9 @@ scheduleNextTranslationBatch()
 | fetch 攔截沒捕到 | YouTube 播放器可能用 XHR | 同時攔截 fetch 和 XMLHttpRequest |
 | 縮小後展開看不到字幕 | transform + flex 重算問題 | 改用 `display: none` 折疊 body |
 | **選英文但顯示中文** | `&tlang=en` 翻譯靜默失敗，YouTube 直接回傳原文 CJK，inject.js 未驗證就存入 sessionStorage 並標記為「英文」；下次 sessionStorage 命中時吐出中文內容卻掛英文標籤 | Path 3 fetch 後以 `looksLikeCJK()` 驗證語言，不符則送錯誤訊息且**不快取**；Path 0 sessionStorage 命中後也做語言驗證，發現舊壞快取則先清除再重新 fetch |
-| **字幕找到但不載入（語言不存在）** | `autoLoadSubtitles` 用 `settings.primaryLang`（如 `'en'`）在影片 tracks 中找對應 track，找不到時 `findPrimaryTrack` 回傳 `null`，`loadSubtitle` 完全沒被呼叫，字幕靜默不載 | `renderLanguages` 偵測偏好語言不在此影片 tracks 中（`anyMatched=false`），臨時更新 runtime `settings.primaryLang/primaryVssId` 為第一個可用 track（**不呼叫 `saveSettings()`**，不污染跨影片偏好）；dropdown 同步選中第一個 option；`autoLoadSubtitles` 額外保留 fallback 鏈：手動字幕 → `tracks[0]` |
+| **字幕找到但不載入（語言不存在）** | `autoLoadSubtitles` 用 `settings.primaryLang`（如 `'en'`）在影片 tracks 中找對應 track，找不到時 `findPrimaryTrack` 回傳 `null`，`loadSubtitle` 完全沒被呼叫，字幕靜默不載 | `renderLanguages` 偵測偏好語言不在此影片 tracks 中（`anyMatched=false`）時，設定 `primaryOverride = displayTracks[0]` 並傳給 `autoLoadSubtitles(tracks, primaryOverride)`；**不修改 settings**，保留使用者原始偏好給下一部影片 |
+| **主字幕設定被跨影片污染（primaryLang 跑掉）** | 舊修法在 `anyMatched=false` 時直接對 `settings.primaryLang/primaryVssId` 賦值（未呼叫 `saveSettings`），但 runtime settings 物件已被 mutate；之後任何操作（切 toggle、改副字幕等）觸發 `saveSettings()` 都會把 fallback 語言永久寫入 localStorage，導致下次開啟偏好語言變成別的影片的語言 | 改用 `primaryOverride` 參數：fallback 時只傳一個臨時 track 給 `autoLoadSubtitles`，完全不碰 `settings` 物件；`autoLoadSubtitles` 簽名改為 `(tracks, primaryOverride = null)`，有 override 時優先用，否則走 `findPrimaryTrack` 正常邏輯 |
+| **重複句子第二次出現沒有翻譯** | YouTube 的 `&tlang=` 翻譯檔會跳過重複歌詞／台詞，只翻第一次出現；`findSubAtTime` 純按時間查，第二次出現的時間點在 `secondarySubtitles` 裡無條目，查不到 | ytlang secondary 載完後呼叫 `fillMissingSecondary()`：建立「原文小寫 → 第一個譯文」映射，對沒有時間對應的 primary subtitle 補插相同時間長度的 secondary 條目 |
 | **生字本「當前影片」換頁不更新** | SPA 導航時 MutationObserver 重置字幕資料但沒呼叫 `renderWordbook()`，面板繼續顯示上一部影片的單字 | URL 變化分支補一行：若生字本面板開著則呼叫 `renderWordbook()`（`renderWordbook` 只讀 `location.search` 和 `chrome.storage`，不依賴被清空的字幕變數，安全） |
 
 ---

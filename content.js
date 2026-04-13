@@ -80,10 +80,12 @@
       overlayEnabled: true,
       loopSentence:   true,   // 單句循環
       translationProvider: 'ytlang',  // ytlang | google
+      googleBatchMode:    'sentence8', // sentence8 | words100
       wordHover:      true,   // 單字 hover 高亮
       wordSpeak:      true,   // 點擊單字朗讀
       extensionEnabled:  true, // 套件整體開關
       extendSubtitles:   true, // 延長字幕顯示（填滿字幕間的空白間隔）
+      subtitleOffset:    0,    // 字幕時間偏移（秒），正數延後、負數提前，範圍 ±30
     };
   }
 
@@ -111,184 +113,213 @@
     sidebar.id = 'yt-sub-demo-sidebar';
     sidebar.innerHTML = `
       <div class="yt-sub-header">
+        <div class="yt-sub-header-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 6h16M4 12h10M4 18h7"/>
+          </svg>
+        </div>
         <span class="yt-sub-title">字幕提取器</span>
         <div class="yt-sub-header-btns">
-          <button class="yt-sub-icon-btn" id="yt-sub-refresh-btn" title="重新載入字幕">↻</button>
-          <button class="yt-sub-icon-btn" id="yt-sub-wordbook-btn" title="生字本">★</button>
-          <button class="yt-sub-icon-btn" id="yt-sub-settings-btn" title="設定">⚙</button>
-          <button class="yt-sub-icon-btn" id="yt-sub-power-btn" title="關閉翻譯">⏻</button>
-          <button class="yt-sub-icon-btn" id="yt-sub-toggle-btn">▲</button>
+          <button class="yt-sub-icon-btn reload" id="yt-sub-refresh-btn" title="重新載入字幕">↻</button>
+          <button class="yt-sub-icon-btn power" id="yt-sub-power-btn" title="關閉翻譯">⏻</button>
         </div>
+      </div>
+
+      <div class="yt-sub-tab-bar" id="yt-sub-tab-bar">
+        <button class="yt-sub-tab active" data-tab="subtitle">字幕</button>
+        <button class="yt-sub-tab" data-tab="wordbook">生字本</button>
+        <button class="yt-sub-tab" data-tab="settings">設定</button>
       </div>
 
       <div class="yt-sub-body" id="yt-sub-body">
 
-        <!-- 設定面板 -->
-        <div class="yt-sub-settings" id="yt-sub-settings" style="display:none">
-
-          <div class="yt-sub-settings-section">
-            <div class="yt-sub-settings-section-title">語言</div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">雙語模式</span>
-              <label class="yt-sub-switch">
-                <input type="checkbox" id="yt-sub-dual-toggle">
-                <span class="yt-sub-switch-slider"></span>
-              </label>
-            </div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">主字幕</span>
-              <select id="yt-sub-primary-select" class="yt-sub-select"></select>
-            </div>
-            <div class="yt-sub-settings-row" id="yt-sub-secondary-row">
-              <span class="yt-sub-settings-label">副字幕 1</span>
-              <select id="yt-sub-secondary-select-0" class="yt-sub-select"></select>
-            </div>
-            <div class="yt-sub-settings-row" id="yt-sub-secondary-row-1">
-              <span class="yt-sub-settings-label">副字幕 2</span>
-              <select id="yt-sub-secondary-select-1" class="yt-sub-select"></select>
-            </div>
-            <div class="yt-sub-settings-row" id="yt-sub-secondary-row-2">
-              <span class="yt-sub-settings-label">副字幕 3</span>
-              <select id="yt-sub-secondary-select-2" class="yt-sub-select"></select>
-            </div>
-            <div class="yt-sub-settings-row" id="yt-sub-asr-row" style="display:none">
-              <span class="yt-sub-settings-label">自動產生語言</span>
-              <select id="yt-sub-asr-select" class="yt-sub-select"></select>
-            </div>
+        <!-- TAB 1：字幕 -->
+        <div class="yt-sub-panel active" id="yt-sub-panel-subtitle">
+          <div class="yt-sub-langs" id="yt-sub-langs"></div>
+          <div class="yt-sub-current" id="yt-sub-current">
+            <div class="yt-sub-current-primary" id="yt-sub-cur-primary"></div>
+            <div class="yt-sub-current-secondary" id="yt-sub-cur-secondary"></div>
           </div>
+          <div class="yt-sub-list" id="yt-sub-list"></div>
+          <div class="yt-sub-status" id="yt-sub-status">載入中...</div>
+        </div>
 
-          <div class="yt-sub-settings-section">
-            <div class="yt-sub-settings-section-title">翻譯服務</div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">服務</span>
-              <select id="yt-sub-trans-provider" class="yt-sub-select">
-                <option value="ytlang">YouTube 內建</option>
-                <option value="google">Google（免費）</option>
+        <!-- TAB 2：生字本 -->
+        <div class="yt-sub-panel" id="yt-sub-panel-wordbook">
+          <div class="yt-sub-wordbook" id="yt-sub-wordbook">
+            <div class="yt-sub-wordbook-toolbar">
+              <select class="yt-sub-select yt-sub-wordbook-sort" id="yt-sub-wordbook-sort">
+                <option value="current-video">從此影片生成的生字</option>
+                <option value="date-desc">最近加入</option>
+                <option value="count-desc">查詢最多</option>
+                <option value="alpha">字母順序</option>
               </select>
+              <button class="yt-sub-wb-loop-btn" id="yt-sub-wb-loop-btn" title="循環當前句">⟳</button>
+              <span class="yt-sub-wordbook-count" id="yt-sub-wordbook-count"></span>
             </div>
+            <div class="yt-sub-wordbook-list" id="yt-sub-wordbook-list"></div>
           </div>
-
-          <div class="yt-sub-settings-section">
-            <div class="yt-sub-settings-section-title">顯示</div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">主字幕大小</span>
-              <div class="yt-sub-size-group" id="yt-sub-primary-size-group">
-                <button data-val="sm">小</button>
-                <button data-val="md">中</button>
-                <button data-val="lg">大</button>
-              </div>
-            </div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">副字幕大小</span>
-              <div class="yt-sub-size-group" id="yt-sub-secondary-size-group">
-                <button data-val="sm">小</button>
-                <button data-val="md">中</button>
-                <button data-val="lg">大</button>
-              </div>
-            </div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">副字幕顏色</span>
-              <div class="yt-sub-swatch-group" id="yt-sub-color-group">
-                <button class="yt-sub-swatch" data-val="purple" style="background:#a855f7" title="紫"></button>
-                <button class="yt-sub-swatch" data-val="cyan"   style="background:#22d3ee" title="青"></button>
-                <button class="yt-sub-swatch" data-val="yellow" style="background:#fbbf24" title="黃"></button>
-                <button class="yt-sub-swatch" data-val="white"  style="background:#e0e0e0" title="白"></button>
-              </div>
-            </div>
-          </div>
-
-          <div class="yt-sub-settings-section">
-            <div class="yt-sub-settings-section-title">行為</div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">單句循環</span>
-              <label class="yt-sub-switch">
-                <input type="checkbox" id="yt-sub-loop-sentence">
-                <span class="yt-sub-switch-slider"></span>
-              </label>
-            </div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">影片浮動字幕</span>
-              <label class="yt-sub-switch">
-                <input type="checkbox" id="yt-sub-overlay-toggle">
-                <span class="yt-sub-switch-slider"></span>
-              </label>
-            </div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">點擊字幕跳轉</span>
-              <label class="yt-sub-switch">
-                <input type="checkbox" id="yt-sub-click-seek">
-                <span class="yt-sub-switch-slider"></span>
-              </label>
-            </div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">自動捲動</span>
-              <label class="yt-sub-switch">
-                <input type="checkbox" id="yt-sub-auto-scroll">
-                <span class="yt-sub-switch-slider"></span>
-              </label>
-            </div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">單字 Hover 高亮</span>
-              <label class="yt-sub-switch">
-                <input type="checkbox" id="yt-sub-word-hover">
-                <span class="yt-sub-switch-slider"></span>
-              </label>
-            </div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">點擊單字朗讀</span>
-              <label class="yt-sub-switch">
-                <input type="checkbox" id="yt-sub-word-speak">
-                <span class="yt-sub-switch-slider"></span>
-              </label>
-            </div>
-            <div class="yt-sub-settings-row">
-              <span class="yt-sub-settings-label">延長字幕顯示</span>
-              <label class="yt-sub-switch">
-                <input type="checkbox" id="yt-sub-extend-subs">
-                <span class="yt-sub-switch-slider"></span>
-              </label>
-            </div>
-          </div>
-
         </div>
 
-        <!-- 生字本面板 -->
-        <div class="yt-sub-wordbook" id="yt-sub-wordbook" style="display:none">
-          <div class="yt-sub-wordbook-toolbar">
-            <span class="yt-sub-wordbook-count" id="yt-sub-wordbook-count">0 個單字</span>
-            <select class="yt-sub-select yt-sub-wordbook-sort" id="yt-sub-wordbook-sort">
-              <option value="current-video">當前影片</option>
-              <option value="date-desc">最近加入</option>
-              <option value="count-desc">查詢最多</option>
-              <option value="alpha">字母順序</option>
-            </select>
-          </div>
-          <div class="yt-sub-wordbook-list" id="yt-sub-wordbook-list"></div>
-        </div>
+        <!-- TAB 3：設定 -->
+        <div class="yt-sub-panel" id="yt-sub-panel-settings">
+          <div class="yt-sub-settings" id="yt-sub-settings">
 
-        <div class="yt-sub-status" id="yt-sub-status">載入中...</div>
-        <div class="yt-sub-langs" id="yt-sub-langs"></div>
-        <div class="yt-sub-current" id="yt-sub-current">
-          <div class="yt-sub-current-primary" id="yt-sub-cur-primary"></div>
-          <div class="yt-sub-current-secondary" id="yt-sub-cur-secondary"></div>
+            <div class="yt-sub-settings-section">
+              <div class="yt-sub-settings-section-title">語言</div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">雙語模式</span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-dual-toggle">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">主字幕</span>
+                <select id="yt-sub-primary-select" class="yt-sub-select"></select>
+              </div>
+              <div class="yt-sub-settings-row" id="yt-sub-secondary-row">
+                <span class="yt-sub-settings-label">副字幕 1</span>
+                <select id="yt-sub-secondary-select-0" class="yt-sub-select"></select>
+              </div>
+              <div class="yt-sub-settings-row" id="yt-sub-secondary-row-1">
+                <span class="yt-sub-settings-label">副字幕 2</span>
+                <select id="yt-sub-secondary-select-1" class="yt-sub-select"></select>
+              </div>
+              <div class="yt-sub-settings-row" id="yt-sub-secondary-row-2">
+                <span class="yt-sub-settings-label">副字幕 3</span>
+                <select id="yt-sub-secondary-select-2" class="yt-sub-select"></select>
+              </div>
+              <div class="yt-sub-settings-row" id="yt-sub-asr-row" style="display:none">
+                <span class="yt-sub-settings-label">自動產生語言</span>
+                <select id="yt-sub-asr-select" class="yt-sub-select"></select>
+              </div>
+            </div>
+
+            <div class="yt-sub-settings-section">
+              <div class="yt-sub-settings-section-title">翻譯服務</div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">服務</span>
+                <select id="yt-sub-trans-provider" class="yt-sub-select">
+                  <option value="ytlang">YouTube 內建</option>
+                  <option value="google">Google（免費）</option>
+                </select>
+              </div>
+              <div class="yt-sub-settings-row" id="yt-sub-batch-mode-row" style="display:none">
+                <span class="yt-sub-settings-label">批次模式</span>
+                <select id="yt-sub-batch-mode" class="yt-sub-select">
+                  <option value="sentence8">固定 8 句</option>
+                  <option value="words100">約 100 字</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="yt-sub-settings-section">
+              <div class="yt-sub-settings-section-title">顯示</div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">主字幕大小</span>
+                <div class="yt-sub-size-group" id="yt-sub-primary-size-group">
+                  <button data-val="sm">小</button>
+                  <button data-val="md">中</button>
+                  <button data-val="lg">大</button>
+                </div>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">副字幕大小</span>
+                <div class="yt-sub-size-group" id="yt-sub-secondary-size-group">
+                  <button data-val="sm">小</button>
+                  <button data-val="md">中</button>
+                  <button data-val="lg">大</button>
+                </div>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">副字幕顏色</span>
+                <div class="yt-sub-swatch-group" id="yt-sub-color-group">
+                  <button class="yt-sub-swatch" data-val="purple" style="background:#a855f7" title="紫"></button>
+                  <button class="yt-sub-swatch" data-val="cyan"   style="background:#22d3ee" title="青"></button>
+                  <button class="yt-sub-swatch" data-val="yellow" style="background:#fbbf24" title="黃"></button>
+                  <button class="yt-sub-swatch" data-val="white"  style="background:#e0e0e0" title="白"></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="yt-sub-settings-section">
+              <div class="yt-sub-settings-section-title">行為</div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">單句循環</span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-loop-sentence">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">影片浮動字幕</span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-overlay-toggle">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">點擊字幕跳轉</span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-click-seek">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">自動捲動</span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-auto-scroll">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">單字 Hover 高亮</span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-word-hover">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">點擊單字朗讀</span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-word-speak">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">延長字幕顯示</span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-extend-subs">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
+              <div class="yt-sub-settings-row yt-sub-offset-row">
+                <span class="yt-sub-settings-label">字幕時間偏移</span>
+                <div class="yt-sub-offset-control">
+                  <input type="range" id="yt-sub-offset-slider" min="-30" max="30" step="0.5" value="0" class="yt-sub-offset-slider">
+                  <span id="yt-sub-offset-display" class="yt-sub-offset-display">0.0s</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
-        <div class="yt-sub-list" id="yt-sub-list"></div>
 
       </div>
     `;
-    document.body.appendChild(sidebar);
+    // wrapper：把 sidebar + ball 包在同一個容器，clip-path 只作用於 sidebar，不影響 ball
+    const wrapper = document.createElement('div');
+    wrapper.id = 'yt-sub-wrapper';
+    wrapper.appendChild(sidebar);
+    document.body.appendChild(wrapper);
+    createBall(wrapper);
 
-    // 若套件為停用狀態，隱藏 body（header 仍可見供重新開啟）
+    // 若套件為停用狀態，直接收合
     if (!settings.extensionEnabled) {
+      sidebar.classList.add('sidebar-collapsed');
       document.getElementById('yt-sub-body').style.display = 'none';
     }
-
-    // 收合 / 展開
-    document.getElementById('yt-sub-toggle-btn').addEventListener('click', function () {
-      sidebar.classList.toggle('collapsed');
-      this.textContent = sidebar.classList.contains('collapsed') ? '▼' : '▲';
-      updateOverlayRight();
-    });
 
     updateOverlayRight();
 
@@ -320,29 +351,42 @@
     powerBtn.classList.toggle('power-off', !settings.extensionEnabled);
     powerBtn.addEventListener('click', toggleExtension);
 
-    // 設定面板開關
-    document.getElementById('yt-sub-settings-btn').addEventListener('click', () => {
-      const settingsPanel = document.getElementById('yt-sub-settings');
-      const wbPanel = document.getElementById('yt-sub-wordbook');
-      const opening = settingsPanel.style.display === 'none';
-      settingsPanel.style.display = opening ? 'flex' : 'none';
-      if (opening) wbPanel.style.display = 'none'; // 互斥
+    // 頁籤切換（opacity 淡入淡出，panel 全留在 DOM 避免重排）
+    let _wordbookLoaded = false;
+    document.querySelectorAll('.yt-sub-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.yt-sub-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.dataset.tab;
+        document.querySelectorAll('.yt-sub-panel').forEach(p => p.classList.remove('active'));
+        document.getElementById('yt-sub-panel-' + target).classList.add('active');
+        // 生字本只在第一次或資料可能更新時重新渲染
+        if (target === 'wordbook' && !_wordbookLoaded) {
+          _wordbookLoaded = true;
+          renderWordbook();
+        }
+      });
     });
 
-    // 生字本面板開關
-    document.getElementById('yt-sub-wordbook-btn').addEventListener('click', () => {
-      const wbPanel = document.getElementById('yt-sub-wordbook');
-      const settingsPanel = document.getElementById('yt-sub-settings');
-      const opening = wbPanel.style.display === 'none';
-      wbPanel.style.display = opening ? 'block' : 'none';
-      if (opening) {
-        settingsPanel.style.display = 'none'; // 互斥
-        renderWordbook();
-      }
-    });
+    // 儲存或刪除單字後標記需要重新渲染
+    const _markWordbookDirty = () => { _wordbookLoaded = false; };
 
     // 生字本排序變更時重新渲染
     document.getElementById('yt-sub-wordbook-sort').addEventListener('change', () => renderWordbook());
+
+    // 生字本循環當前句按鈕
+    document.getElementById('yt-sub-wb-loop-btn').addEventListener('click', () => {
+      const video = document.querySelector('video');
+      if (!video || !primarySubtitles.length) return;
+      if (loopingIdx >= 0) {
+        loopingIdx = -1;
+      } else {
+        const idx = findActiveIndex(primarySubtitles, video.currentTime + (settings.subtitleOffset || 0));
+        if (idx >= 0) loopingIdx = idx;
+      }
+      updateCurrentLoopStyle();
+      updateWbLoopBtn();
+    });
 
     // ── 語言設定（即時生效）────────────────────────────────────
     const dualToggle = document.getElementById('yt-sub-dual-toggle');
@@ -408,6 +452,13 @@
       updateTransProviderUI();
       secondarySubtitles = [];
       autoLoadSubtitles(trackList);
+    });
+
+    const batchModeSel = document.getElementById('yt-sub-batch-mode');
+    batchModeSel.value = settings.googleBatchMode;
+    batchModeSel.addEventListener('change', () => {
+      settings.googleBatchMode = batchModeSel.value;
+      saveSettings();
     });
 
     // ── 單句循環 ──────────────────────────────────────────────
@@ -488,6 +539,18 @@
       }
     });
 
+    // 字幕時間偏移滑桿
+    const offsetSlider  = document.getElementById('yt-sub-offset-slider');
+    const offsetDisplay = document.getElementById('yt-sub-offset-display');
+    const formatOffset  = v => (v >= 0 ? '+' : '') + parseFloat(v).toFixed(1) + 's';
+    offsetSlider.value  = settings.subtitleOffset;
+    offsetDisplay.textContent = formatOffset(settings.subtitleOffset);
+    offsetSlider.addEventListener('input', () => {
+      settings.subtitleOffset = parseFloat(offsetSlider.value);
+      offsetDisplay.textContent = formatOffset(settings.subtitleOffset);
+      saveSettings();
+    });
+
     // 套用初始顯示設定
     applyDisplaySettings();
     updateSizeGroupUI();
@@ -495,7 +558,8 @@
   }
 
   function updateTransProviderUI() {
-    // 目前兩個 provider 都不需要額外輸入欄
+    const batchRow = document.getElementById('yt-sub-batch-mode-row');
+    if (batchRow) batchRow.style.display = settings.translationProvider === 'google' ? '' : 'none';
   }
 
   function applyWordHoverStyle() {
@@ -573,8 +637,12 @@
       status.textContent = '此影片沒有可用字幕';
       status.className = 'yt-sub-status error';
       container.innerHTML = '';
+      collapseSidebar('no-sub'); // 無字幕：自動收合，亮紅點
       return;
     }
+
+    // 有字幕：確保 sidebar 展開
+    expandSidebar();
 
     // ASR tracks 處理：只顯示使用者選定語言的那一條
     const asrTracks = trackList.filter(t => (t.vssId || '').startsWith('a.'));
@@ -619,19 +687,17 @@
       if (settingsSel) settingsSel.value = vssId;
       loadSubtitle(track, 'primary');
     });
-    // 若設定語言在此影片中找不到，選中第一個 option 並臨時更新 runtime 設定
-    // （不呼叫 saveSettings，保留使用者原始偏好語言給下一部影片使用）
+    // 若設定語言在此影片中找不到，選中第一個 option 並用 override 傳給 autoLoadSubtitles
+    // 不修改 settings，保留使用者原始偏好給下一部影片
     const anyMatched = displayTracks.some(t =>
       settings.primaryVssId
         ? (t.vssId || t.languageCode) === settings.primaryVssId
         : t.languageCode === settings.primaryLang
     );
+    let primaryOverride = null;
     if (!anyMatched && displayTracks.length > 0) {
-      const first = displayTracks[0];
+      primaryOverride = displayTracks[0];
       langDropdown.options[0].selected = true;
-      // 臨時更新，使 autoLoadSubtitles 的 findPrimaryTrack 能找到正確 track
-      settings.primaryLang  = first.languageCode;
-      settings.primaryVssId = first.vssId || null;
     }
 
     container.appendChild(langDropdown);
@@ -639,7 +705,7 @@
     fillLangSelect('yt-sub-primary-select', displayTracks, settings.primaryVssId || settings.primaryLang, false);
     refreshSecondarySelects();
     highlightActiveLangs();
-    autoLoadSubtitles(trackList);
+    autoLoadSubtitles(trackList, primaryOverride);
   }
 
   function fillAsrSelect(asrTracks) {
@@ -769,10 +835,14 @@
   }
 
   // ===== 自動載入主、副字幕 =====
-  function autoLoadSubtitles(tracks) {
+  // primaryOverride：強制使用指定 track（fallback 情境），不修改 settings
+  function autoLoadSubtitles(tracks, primaryOverride = null) {
     if (!tracks.length) return;
-    // 找偏好語言的 track；若仍找不到（非從 renderLanguages 呼叫的路徑），fallback 到第一條
-    const primary = findPrimaryTrack(tracks) || tracks.find(t => !(t.vssId||'').startsWith('a.')) || tracks[0] || null;
+    const primary = primaryOverride
+      || findPrimaryTrack(tracks)
+      || tracks.find(t => !(t.vssId||'').startsWith('a.'))
+      || tracks[0]
+      || null;
     if (primary) loadSubtitle(primary, 'primary');
 
     pendingTranslation = null;
@@ -919,11 +989,41 @@
     return subs.find(s => time >= s.startTime && time < s.startTime + s.duration) || null;
   }
 
+  // ytlang 翻譯檔會跳過重複歌詞/台詞，補上缺少翻譯的 primary subtitle
+  // 做法：建立「原文 → 第一個翻譯」映射，再填補沒有時間對應的 primary
+  function fillMissingSecondary() {
+    if (!primarySubtitles.length || !secondarySubtitles.length) return;
+
+    // 第一步：收集所有已有的 primaryText → secondaryText 對應
+    const textMap = new Map();
+    primarySubtitles.forEach(prim => {
+      const midTime = prim.startTime + prim.duration / 2;
+      const sec = findSubAtTime(secondarySubtitles, midTime);
+      if (sec) {
+        const key = prim.text.trim().toLowerCase();
+        if (!textMap.has(key)) textMap.set(key, sec.text);
+      }
+    });
+
+    // 第二步：對沒有對應翻譯的 primary，用同文字的譯文補上
+    const toAdd = [];
+    primarySubtitles.forEach(prim => {
+      const midTime = prim.startTime + prim.duration / 2;
+      if (!findSubAtTime(secondarySubtitles, midTime)) {
+        const translated = textMap.get(prim.text.trim().toLowerCase());
+        if (translated) {
+          toAdd.push({ startTime: prim.startTime, duration: prim.duration, text: translated });
+        }
+      }
+    });
+    if (toAdd.length) secondarySubtitles.push(...toAdd);
+  }
+
   // ===== 單字查詢浮窗 =====
   const dictCache = {};  // word → result (max 200 entries)
   const DICT_CACHE_MAX = 200;
 
-  function showWordPopup(word, anchor) {
+  function showWordPopup(word, anchor, sentenceData = null) {
     let popup = document.getElementById('yt-sub-word-popup');
     if (!popup) {
       popup = document.createElement('div');
@@ -940,7 +1040,7 @@
     let left = rect.left + rect.width / 2 - popupWidth / 2;
     left = Math.max(margin, Math.min(left, rightBound - popupWidth));
     let top = rect.bottom + 6;
-    if (top + 280 > window.innerHeight - margin) top = rect.top - 286;
+    if (top + 420 > window.innerHeight - margin) top = rect.top - 426;
     top = Math.max(margin, top);
     popup.style.left = left + 'px';
     popup.style.top  = top + 'px';
@@ -956,10 +1056,44 @@
       if (popup.style.display === 'none' || popup.dataset.word !== word) return;
       if (!result) {
         popup.innerHTML = `<div class="yt-sub-popup-error">找不到「${word}」的定義</div>`;
-        return;
+      } else {
+        renderPopupContent(popup, result);
       }
-      renderPopupContent(popup, result);
+      if (sentenceData?.context) appendSentenceSection(popup, word, sentenceData);
     });
+  }
+
+  // 在 popup 底部附加例句區塊
+  function appendSentenceSection(popup, word, item) {
+    const currentVideoId = new URLSearchParams(location.search).get('v') || '';
+    const isSameVideo = item.videoId && item.videoId === currentVideoId;
+    const timeLabel = formatTime(item.startTime || 0);
+
+    const safeWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const highlighted = escapeHtml(item.context).replace(
+      new RegExp(`(${safeWord})`, 'gi'),
+      '<mark class="yt-sub-sent-mark">$1</mark>'
+    );
+
+    const section = document.createElement('div');
+    section.className = 'yt-sub-popup-sentence';
+    section.innerHTML = `
+      <div class="yt-sub-popup-sent-en">${highlighted}</div>
+      ${item.contextZh ? `<div class="yt-sub-popup-sent-zh">${escapeHtml(item.contextZh)}</div>` : ''}
+      <button class="yt-sub-popup-sent-seek" title="${isSameVideo ? '跳轉到此句' : '在 YouTube 開啟'}">
+        ${isSameVideo ? '▶' : '↗'} ${timeLabel}
+      </button>
+    `;
+    section.querySelector('.yt-sub-popup-sent-seek').addEventListener('click', e => {
+      e.stopPropagation();
+      if (isSameVideo) {
+        seekTo(item.startTime || 0);
+      } else {
+        window.open(`https://www.youtube.com/watch?v=${item.videoId}&t=${Math.floor(item.startTime || 0)}s`, '_blank');
+      }
+      popup.style.display = 'none';
+    });
+    popup.appendChild(section);
   }
 
   // 詞頻分級對應顯示文字
@@ -1135,7 +1269,7 @@
         if (anchor) anchor.classList.add('word-saved');
         showSaveToast(word, alreadySaved);
         // 面板開著時立即更新列表
-        if (document.getElementById('yt-sub-wordbook')?.style.display !== 'none') {
+        if (document.getElementById('yt-sub-panel-wordbook')?.classList.contains('active')) {
           renderWordbook();
         }
         // 非同步翻譯例句，完成後寫回 storage 並重新渲染
@@ -1148,7 +1282,7 @@
               if (s2[word]) {
                 s2[word].contextZh = zh;
                 chrome.storage.local.set({ [SAVED_WORDS_KEY]: s2 }, () => {
-                  if (document.getElementById('yt-sub-wordbook')?.style.display !== 'none') {
+                  if (document.getElementById('yt-sub-panel-wordbook')?.classList.contains('active')) {
                     renderWordbook();
                   }
                 });
@@ -1168,7 +1302,7 @@
                   s2[word].noDefinition = true;
                   s2[word].tierFetched  = true;
                   chrome.storage.local.set({ [SAVED_WORDS_KEY]: s2 }, () => {
-                    if (document.getElementById('yt-sub-wordbook')?.style.display !== 'none') {
+                    if (document.getElementById('yt-sub-panel-wordbook')?.classList.contains('active')) {
                       renderWordbook();
                     }
                   });
@@ -1189,7 +1323,7 @@
                 if (!s2[word].wordZh)       s2[word].wordZh       = result.wordZh       || '';
                 if (!s2[word].definitionZh) s2[word].definitionZh = result.definitionZh || '';
                 chrome.storage.local.set({ [SAVED_WORDS_KEY]: s2 }, () => {
-                  if (document.getElementById('yt-sub-wordbook')?.style.display !== 'none') {
+                  if (document.getElementById('yt-sub-panel-wordbook')?.classList.contains('active')) {
                     renderWordbook();
                   }
                 });
@@ -1258,30 +1392,39 @@
         const tierHtml = item.tier && TIER_CLASS[item.tier]
           ? `<span class="yt-sub-tier-badge ${TIER_CLASS[item.tier]}">${TIER_LABEL[item.tier]}</span>`
           : '';
-        const ctxHtml = item.context
-          ? `<button class="yt-sub-wb-ctx" title="查看原句">≡</button>`
+        const isSameVideo = item.videoId && item.videoId === currentVideoId;
+        const rowBtnsHtml = isSameVideo && item.startTime != null
+          ? `<button class="yt-sub-wb-row-play" data-start="${item.startTime}" title="播放此句">▶</button>`
           : '';
         row.innerHTML = `
           <span class="yt-sub-wb-word${item.noDefinition ? ' no-def' : ''}">${escapeHtml(item.word)}</span>
           ${item.wordZh ? `<span class="yt-sub-wb-zh">${escapeHtml(item.wordZh)}</span>` : ''}
+          ${rowBtnsHtml}
           ${tierHtml}
           ${item.count > 1 ? `<span class="yt-sub-wb-meta">×${item.count}</span>` : ''}
-          ${ctxHtml}
           <button class="yt-sub-wb-del" data-word="${escapeHtml(item.word)}" title="刪除">×</button>
         `;
 
-        // 點擊單字查字典（字典查無此字時不掛 listener）
+        // 點擊單字：查字典，並在底部附加例句（若有）
         if (!item.noDefinition) {
           row.querySelector('.yt-sub-wb-word').addEventListener('click', e => {
-            showWordPopup(item.word, e.target);
+            showWordPopup(item.word, e.target, item);
           });
         }
 
-        // 點擊原句按鈕
-        if (item.context) {
-          row.querySelector('.yt-sub-wb-ctx').addEventListener('click', e => {
+        // 播放此句按鈕（跳轉到該句）
+        const playBtn = row.querySelector('.yt-sub-wb-row-play');
+        if (playBtn) {
+          playBtn.addEventListener('click', e => {
             e.stopPropagation();
-            showSentencePopup(item, e.target);
+            const startTime = parseFloat(playBtn.dataset.start);
+            seekTo(startTime);
+            // 循環開著：跟著轉移到新的句子；循環關著：不動
+            if (loopingIdx >= 0) {
+              const idx = primarySubtitles.findIndex(s => s.startTime === startTime);
+              loopingIdx = idx >= 0 ? idx : -1;
+              updateCurrentLoopStyle();
+            }
           });
         }
 
@@ -1404,36 +1547,40 @@
 
     const statusEl = document.getElementById('yt-sub-status');
     const primaryName = trackList.find(t => t.languageCode === settings.primaryLang)?.name || settings.primaryLang;
-    const BATCH = 8;
     let done = 0;
 
-    for (let b = 0; b < indices.length; b += BATCH) {
+    // 依批次模式決定分組：sentence8 = 固定 8 句，words100 = 累積約 100 字
+    const groups = settings.googleBatchMode === 'words100'
+      ? groupByWords(indices, subs, 100)
+      : (() => { const g = []; for (let b = 0; b < indices.length; b += 8) g.push(indices.slice(b, b + 8)); return g; })();
+
+    for (const group of groups) {
       if (job.cancelled) return;
-      const batch = indices.slice(b, b + BATCH);
-      for (const i of batch) {
-        if (job.cancelled) return;
-        try {
-          const result = await translateOne(subs[i].text, targetLang);
-          // 直接更新對應的 secondary 句，不重建整個陣列
+      try {
+        const texts = group.map(i => subs[i].text);
+        // 合併成一次 API 請求
+        const results = await translateBatch(texts, targetLang);
+        for (let k = 0; k < group.length; k++) {
+          if (job.cancelled) return;
+          const i = group[k];
           const existing = secondarySubtitles.findIndex(s => s.startTime === subs[i].startTime);
-          const entry = { ...subs[i], text: result };
+          const entry = { ...subs[i], text: results[k] };
           if (existing >= 0) secondarySubtitles[existing] = entry;
           else secondarySubtitles.push(entry);
-          // 只更新這一條 DOM，不重建整個列表
-          patchSubtitleItem(i, result);
-        } catch (e) {
-          if (job.cancelled) return;
-          if (statusEl) { statusEl.textContent = `翻譯失敗：${e.message}`; statusEl.className = 'yt-sub-status error'; }
-          return;
+          patchSubtitleItem(i, results[k]);
+          done++;
         }
-        done++;
+      } catch (e) {
+        if (job.cancelled) return;
+        if (statusEl) { statusEl.textContent = `翻譯失敗：${e.message}`; statusEl.className = 'yt-sub-status error'; }
+        return;
       }
       if (!syncInterval) startSync();
       if (statusEl) {
         statusEl.textContent = `主：${primaryName}（${subs.length} 句）｜翻譯中 ${done}/${indices.length}`;
         statusEl.className = 'yt-sub-status success';
       }
-      if (b + BATCH < indices.length) await new Promise(r => setTimeout(r, 400));
+      if (done < indices.length) await new Promise(r => setTimeout(r, 400));
     }
 
     if (!job.cancelled) {
@@ -1541,6 +1688,42 @@
     return data[0].map(s => s[0]).join('').trim();
   }
 
+  // 將字幕 index 陣列按累積單字數分組（約 maxWords 字一組）
+  function groupByWords(indices, subs, maxWords) {
+    const groups = [];
+    let cur = [], count = 0;
+    for (const i of indices) {
+      const w = subs[i].text.split(/\s+/).length;
+      if (cur.length > 0 && count + w > maxWords) {
+        groups.push(cur);
+        cur = []; count = 0;
+      }
+      cur.push(i); count += w;
+    }
+    if (cur.length) groups.push(cur);
+    return groups;
+  }
+
+  // 多句合併成一次 Google API 請求，用 ⚡ 做分隔符
+  async function translateBatch(texts, targetLang) {
+    const SEP = '\n⚡\n';
+    const lang = ({ 'zh-Hans': 'zh-CN' })[targetLang] || targetLang;
+    const combined = texts.join(SEP);
+    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&dt=t'
+      + '&tl=' + encodeURIComponent(lang) + '&q=' + encodeURIComponent(combined);
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Google 翻譯回傳 ' + resp.status);
+    const data = await resp.json();
+    const raw = data[0].map(s => s[0]).join('').trim();
+    const parts = raw.split(/\n?⚡\n?/).map(p => p.trim());
+    // 切割數量不符時 fallback 逐句翻譯
+    if (parts.length !== texts.length) {
+      console.warn('[YT-SUB] translateBatch 切割數不符，fallback 逐句', parts.length, '!=', texts.length);
+      return Promise.all(texts.map(t => translateGoogle(t, targetLang)));
+    }
+    return parts;
+  }
+
 
   // ===== 影片 Overlay =====
   function applyOverlay() {
@@ -1629,13 +1812,107 @@
     _lastLoopingState = looping;
     document.getElementById('yt-sub-current')?.classList.toggle('looping', looping);
     document.getElementById('yt-sub-ov-body')?.classList.toggle('looping', looping);
+    updateWbLoopBtn();
+  }
+
+  function updateWbLoopBtn() {
+    // toolbar 全域按鈕
+    const btn = document.getElementById('yt-sub-wb-loop-btn');
+    if (btn) {
+      const looping = loopingIdx >= 0;
+      btn.classList.toggle('active', looping);
+      btn.title = looping ? '停止循環' : '循環當前句';
+    }
+    // 每個 row 的循環按鈕：只亮正在循環的那一句
+    const loopingStartTime = loopingIdx >= 0 ? primarySubtitles[loopingIdx]?.startTime : null;
+    document.querySelectorAll('.yt-sub-wb-row-loop').forEach(b => {
+      const isThis = loopingStartTime != null && parseFloat(b.dataset.start) === loopingStartTime;
+      b.classList.toggle('active', isThis);
+      b.title = isThis ? '停止循環' : '循環此句';
+    });
   }
 
   function updateOverlayRight() {
     const overlay = document.getElementById('yt-sub-overlay');
     if (!overlay) return;
-    const collapsed = document.getElementById('yt-sub-demo-sidebar')?.classList.contains('collapsed');
+    const collapsed = document.getElementById('yt-sub-demo-sidebar')?.classList.contains('sidebar-collapsed');
     overlay.style.right = collapsed ? '2%' : 'calc(360px + 2%)';
+  }
+
+  // ===== 懸浮球 =====
+  let _ballAnimating = false;
+
+  function createBall(wrapper) {
+    if (document.getElementById('yt-sub-ball')) return;
+    const ball = document.createElement('div');
+    ball.id = 'yt-sub-ball';
+    ball.innerHTML = `
+      <div class="yt-sub-ball-dot hidden" id="yt-sub-ball-dot"></div>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+           stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+        <path d="M4 6h16M4 12h10M4 18h7"/>
+      </svg>
+    `;
+    // 球掛在 wrapper 裡（sidebar 的 sibling），clip-path 不會裁切它
+    (wrapper || document.body).appendChild(ball);
+
+    // hover：動畫中不觸發
+    ball.addEventListener('mouseenter', () => {
+      if (!_ballAnimating && !ball.classList.contains('expanded')) ball.classList.add('hovered');
+    });
+    ball.addEventListener('mouseleave', () => ball.classList.remove('hovered'));
+
+    // 點擊：切換展開/收合
+    ball.addEventListener('click', () => {
+      ball.classList.remove('hovered');
+      const sidebar = document.getElementById('yt-sub-demo-sidebar');
+      if (sidebar.classList.contains('sidebar-collapsed')) {
+        expandSidebar();
+      } else {
+        collapseSidebar('user');
+      }
+    });
+  }
+
+  function expandSidebar() {
+    const sidebar = document.getElementById('yt-sub-demo-sidebar');
+    const ball    = document.getElementById('yt-sub-ball');
+    if (!sidebar || !ball) return;
+    _ballAnimating = true;
+    sidebar.classList.remove('sidebar-collapsed');
+    ball.classList.add('expanded');
+    const onEnd = () => { _ballAnimating = false; ball.removeEventListener('transitionend', onEnd); };
+    ball.addEventListener('transitionend', onEnd);
+    updateOverlayRight();
+  }
+
+  function collapseSidebar(reason) {
+    const sidebar = document.getElementById('yt-sub-demo-sidebar');
+    const ball    = document.getElementById('yt-sub-ball');
+    if (!sidebar || !ball) return;
+    _ballAnimating = true;
+    sidebar.classList.add('sidebar-collapsed');
+    ball.classList.remove('expanded', 'hovered');
+    const onEnd = () => { _ballAnimating = false; ball.removeEventListener('transitionend', onEnd); };
+    ball.addEventListener('transitionend', onEnd);
+    updateBallDot(reason);
+    updateOverlayRight();
+  }
+
+  // 更新狀態點（no-sub / has-sub / hidden）
+  function updateBallDot(reason) {
+    const dot = document.getElementById('yt-sub-ball-dot');
+    if (!dot) return;
+    dot.classList.remove('no-sub', 'has-sub', 'hidden');
+    // 強制重播動畫
+    dot.style.animation = 'none';
+    dot.offsetHeight;
+    dot.style.animation = '';
+    if (reason === 'no-sub') {
+      dot.classList.add('no-sub');
+    } else {
+      dot.classList.add('has-sub');
+    }
   }
 
   function removeOverlay() {
@@ -1687,7 +1964,8 @@
       if (!video || !primarySubtitles.length) return;
 
       const t = video.currentTime;
-      const primIdx  = findActiveIndex(primarySubtitles, t);
+      const tSub = t + (settings.subtitleOffset || 0); // 套用使用者設定的時間偏移
+      const primIdx  = findActiveIndex(primarySubtitles, tSub);
       const primSub  = primIdx >= 0 ? primarySubtitles[primIdx] : null;
       const secSub   = primSub
         ? findSubAtTime(secondarySubtitles, primSub.startTime + primSub.duration / 2)
@@ -1862,6 +2140,7 @@
         }
       } else {
         secondarySubtitles = parsed;
+        fillMissingSecondary(); // 補上 ytlang 跳過的重複句翻譯
       }
 
       renderSubtitleList();
@@ -1893,7 +2172,7 @@
       if (secCur)  secCur.textContent  = '';
       updateOverlay('', '');
       // 生字本面板開著時，重新渲染以更新「當前影片」篩選
-      if (document.getElementById('yt-sub-wordbook')?.style.display !== 'none') {
+      if (document.getElementById('yt-sub-panel-wordbook')?.classList.contains('active')) {
         renderWordbook();
       }
     }
@@ -1914,22 +2193,27 @@
     settings.extensionEnabled = !settings.extensionEnabled;
     saveSettings();
 
-    const btn  = document.getElementById('yt-sub-power-btn');
-    const body = document.getElementById('yt-sub-body');
+    const btn     = document.getElementById('yt-sub-power-btn');
+    const body    = document.getElementById('yt-sub-body');
+    const tabBar  = document.getElementById('yt-sub-tab-bar');
 
     if (settings.extensionEnabled) {
-      // 開啟：恢復 body，重新觸發字幕載入
-      if (body) body.style.display = '';
-      if (btn)  { btn.classList.remove('power-off'); btn.title = '關閉翻譯'; }
+      // 開啟：展開 sidebar，恢復 body/tab-bar，重新觸發字幕載入
+      expandSidebar();
+      if (body)   body.style.display = '';
+      if (tabBar) tabBar.style.display = '';
+      if (btn)    { btn.classList.remove('power-off'); btn.title = '關閉翻譯'; }
       window.postMessage({ type: 'YT_SUBTITLE_DEMO_REQUEST' }, '*');
     } else {
-      // 關閉：停止背景任務，隱藏 body（header 保留供重新開啟）
+      // 關閉：停止背景任務，收合 sidebar，隱藏 body/tab-bar
       if (syncInterval) { clearInterval(syncInterval); syncInterval = null; }
       const video = document.querySelector('video');
       if (video && _seekHandler) { video.removeEventListener('seeked', _seekHandler); _seekHandler = null; }
       if (translationJob) { translationJob.cancelled = true; translationJob = null; }
-      if (body) body.style.display = 'none';
-      if (btn)  { btn.classList.add('power-off'); btn.title = '開啟翻譯'; }
+      collapseSidebar('user');
+      if (body)   body.style.display = 'none';
+      if (tabBar) tabBar.style.display = 'none';
+      if (btn)    { btn.classList.add('power-off'); btn.title = '開啟翻譯'; }
       removeOverlay();
     }
   }
