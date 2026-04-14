@@ -1,10 +1,10 @@
 /* ===== Sidebar Wrapper（sidebar + ball 的共同容器）===== */
 #yt-sub-wrapper {
   position: fixed;
-  top: 60px;
+  top: 60px;              /* 預設值，syncWrapperToPlayer 會覆寫 */
   right: 0;
   width: 360px;
-  height: calc(100vh - 70px);
+  height: calc(100vh - 70px); /* 預設值，syncWrapperToPlayer 會覆寫 */
   z-index: 9999;
   pointer-events: none; /* wrapper 本身不擋滑鼠，子元素自己開 */
 }
@@ -1179,6 +1179,15 @@
 }
 
 /* ===== Onboarding ===== */
+#yt-sub-ob-overlay {
+  position: absolute;
+  inset: 0;
+  background: #09090b;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+}
+
 .yt-sub-onboarding {
   display: flex;
   flex-direction: column;
@@ -1377,6 +1386,14 @@
 }
 
 .yt-sub-ob-btn-secondary:hover { background: #3f3f46; }
+
+.yt-sub-primary-lang-display {
+  flex: 1;
+  color: #a1a1aa;
+  font-size: 12px;
+  text-align: right;
+  padding-right: 8px;
+}
 
 .yt-sub-ob-reset-btn {
   padding: 4px 12px;

@@ -42,8 +42,24 @@
   // 若頁面已有值（例如擴充套件晚載），直接讀一次
   if (window.ytInitialPlayerResponse) onPlayerData(window.ytInitialPlayerResponse);
 
+  // ── relay helper（inject.js 設好後才可用，Debug Relay 關閉時為 no-op）──
+  function dbg(msg) {
+    // if (typeof window.__dbgSend === 'function') window.__dbgSend(msg);
+  }
+
   // ── timedtext 快取 ──────────────────────────────────────────
   function onTimedtext(url, text) {
+    // 不論有無內容，先 relay 完整 URL 供分析
+    try {
+      const p    = new URL(url);
+      const v    = p.searchParams.get('v') || '?';
+      const lang = p.searchParams.get('lang') || '—';
+      const tlang= p.searchParams.get('tlang') || '—';
+      const hasPot = p.searchParams.has('pot') ? '✅pot' : '—';
+      const len  = text?.length || 0;
+      dbg(`[patch:timedtext] v=${v} lang=${lang} tlang=${tlang} pot=${hasPot} len=${len}`);
+    } catch (e) {}
+
     if (!text || text.length < 10) return;
     try {
       const p   = new URL(url).searchParams;
@@ -52,7 +68,8 @@
       const fmt  = p.get('fmt') || 'xml';
       if (!v) return;
       const key = v + ':' + lang;
-      window.__YT_SUB_TIMEDTEXT_CACHE__[key] = { text, fmt };
+      // url 一併存入，供 inject.js 取用完整 pot/signature 驗證參數
+      window.__YT_SUB_TIMEDTEXT_CACHE__[key] = { text, fmt, url };
       window.dispatchEvent(new CustomEvent('__yt_sub_timedtext__', { detail: { key } }));
     } catch (e) {}
   }

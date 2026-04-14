@@ -7,6 +7,37 @@
   // ===== 防止多次注入 =====
   if (window.__YT_SUB_DEMO_INJECTED__) return;
   window.__YT_SUB_DEMO_INJECTED__ = true;
+
+  /* ===== Debug Relay（ws://localhost:9527）=====
+  啟用方式：取消此區塊的註解，並執行 node relay-server.js
+  (function setupRelay() {
+    let _ws = null;
+    const _q = [];
+
+    function _connect() {
+      try {
+        _ws = new WebSocket('ws://localhost:9527');
+        _ws.onopen  = () => { _q.forEach(m => _ws.send(m)); _q.length = 0; };
+        _ws.onclose = () => { _ws = null; };
+        _ws.onerror = () => { _ws = null; };
+      } catch(e) {}
+    }
+
+    window.__dbgSend = function(msg) {
+      if (!_ws || _ws.readyState > 1) _connect();
+      if (_ws && _ws.readyState === 1) _ws.send(msg);
+      else if (_ws) _q.push(msg);
+    };
+
+    const _log = console.log, _warn = console.warn, _err = console.error;
+    console.log   = (...a) => { _log(...a);  if (String(a[0]).startsWith('[YT-SUB]')) window.__dbgSend('[inject] ' + a.join(' ')); };
+    console.warn  = (...a) => { _warn(...a); window.__dbgSend('[inject:warn] ' + a.join(' ')); };
+    console.error = (...a) => { _err(...a);  window.__dbgSend('[inject:error] ' + a.join(' ')); };
+
+    _connect();
+  })();
+  ===== end Debug Relay ===== */
+
   console.log('[YT-SUB] inject.js 已載入 v10');
 
   // ===== 快取（優先讀 patch.js 在 document_start 就已攔截的全域資料）=====
@@ -387,7 +418,65 @@
       }
     }
 
-    // ── 路徑三：直接 fetch（帶 SAPISIDHASH）───────────────────────
+    // ── 路徑 YouTube-native：用 patch.js 攔截到的完整 URL（含 pot/signature）+ &tlang= ──
+    // 根因：captionTracks[i].baseUrl 有時缺少 pot（Proof of Origin Token），
+    //       造成直接 fetch 回傳 status=200 len=0。
+    //       YouTube 自己的 timedtext 請求帶有 pot，patch.js 已將完整 URL 快取。
+    //       取出該 URL，替換 tlang 後直接使用，完全複製 YouTube 原生行為。
+    syncTimedtextCache();
+    let _nativeEntry = Object.values(window.__YT_SUB_TIMEDTEXT_CACHE__ || {})
+      .find(e => e.url && e.url.includes('v=' + videoId));
+
+    // 冷啟動（頁面剛載入 / cache 為空）：主動 trigger 播放器 fetch 一條原生 track
+    // 讓 patch.js 攔截到帶 pot 的完整 URL，最多等 3 秒
+    if (!_nativeEntry && allTracks.length > 0) {
+      const _warmupLang = allTracks.find(t => (t.vssId||'').startsWith('a.'))?.languageCode
+                       || allTracks[0]?.languageCode;
+      if (_warmupLang) {
+        console.log('[YT-SUB] 路徑 YouTube-native: 冷啟動，觸發播放器取得 pot URL（lang=' + _warmupLang + '）');
+        triggerYouTubeCaption(_warmupLang);
+        for (let _wi = 0; _wi < 6; _wi++) {
+          await new Promise(r => setTimeout(r, 500));
+          syncTimedtextCache();
+          _nativeEntry = Object.values(window.__YT_SUB_TIMEDTEXT_CACHE__ || {})
+            .find(e => e.url && e.url.includes('v=' + videoId));
+          if (_nativeEntry) { console.log('[YT-SUB] 路徑 YouTube-native: pot URL 取得 ✅'); break; }
+        }
+        if (!_nativeEntry) console.log('[YT-SUB] 路徑 YouTube-native: 3 秒內未取得 pot URL，降級');
+      }
+    }
+
+    if (_nativeEntry?.url) {
+      try {
+        const _ytUrl = new URL(_nativeEntry.url);
+        _ytUrl.searchParams.set('fmt', 'json3');
+        _ytUrl.searchParams.delete('tlang'); // 清除舊 tlang
+        const _isNative = allTracks.some(t => t.languageCode === languageCode);
+        if (!_isNative) {
+          // 非原生語言 → 加 &tlang= 讓 YouTube 伺服器端翻譯
+          _ytUrl.searchParams.set('tlang', languageCode);
+        } else {
+          // 原生語言 → 直接換 lang= 參數（但保留所有 pot/signature）
+          _ytUrl.searchParams.set('lang', languageCode);
+        }
+        const _finalUrl = _ytUrl.toString();
+        console.log('[YT-SUB] 路徑 YouTube-native:', _finalUrl.slice(0, 120));
+        const _resp = await originalFetch(_finalUrl, { credentials: 'include' });
+        const _text = await _resp.text();
+        console.log('[YT-SUB] 路徑 YouTube-native 結果: status=' + _resp.status + ' len=' + _text.length);
+        if (_resp.ok && _text && _text.length >= 10) {
+          if (dispatchSubtitle(_text, 'json3', videoId, languageCode, tag)) return;
+        }
+        console.log('[YT-SUB] 路徑 YouTube-native 失敗（status=' + _resp.status + '），降級到路徑三...');
+      } catch(_e) {
+        console.warn('[YT-SUB] 路徑 YouTube-native 例外:', _e.message);
+      }
+    }
+
+    // ── 路徑三（舊有，保留備用）：直接 fetch（帶 SAPISIDHASH）────────────────────────────
+    // 注意：此路徑缺少 pot（Proof of Origin Token），對新版影片可能回傳 len=0。
+    //       只有 YouTube-native 路徑找不到快取 URL 時才走這裡。
+    //
     // baseUrl 過期 → 重新從 Innertube 拿最新 tracks
     if (allTracks.length > 0 && isBaseUrlExpired(allTracks[0]?.baseUrl || '')) {
       console.log('[YT-SUB] ⚠️ allTracks baseUrl 過期，重新 fetch Innertube...');
@@ -396,6 +485,11 @@
       if (freshRenderer?.captionTracks?.length) {
         allTracks = freshRenderer.captionTracks;
         console.log('[YT-SUB] ✅ 取得新 baseUrl，tracks=' + allTracks.length);
+      } else {
+        // Innertube 無法取得新 tracks（UNPLAYABLE 或其他原因）
+        // 清空舊 tracks，避免用過期 baseUrl（可能含不同影片的 videoId）觸發 404
+        console.log('[YT-SUB] ❌ Innertube 無法取得新 tracks，清空舊 allTracks 避免 stale 請求');
+        allTracks = [];
       }
     }
 
