@@ -18,6 +18,48 @@ YT Subtitle Demo - YouTube 字幕提取器
 - 切換影片時會自動重新載入字幕清單
 
 
+v4.2 更新紀錄（2026-04-14）
+============================
+
+【新功能】
+
+■ 主字幕 Google 翻譯路徑
+  - 影片無偏好語言原生字幕時，改用 Google Translate 翻譯（不再依賴 &tlang=）
+  - 避免 YouTube timedtext API 限流（HTTP 429）
+  - 翻譯服務設為「Google」時自動啟用，逐批翻譯並即時更新字幕列表
+
+■ Sidebar 高度動態對齊影片
+  - Sidebar 高度自動等於影片播放器高度，不再全頁覆蓋
+  - 影片下方的標題、說明、留言不再被 sidebar 遮住
+  - 劇院模式自動調整高度
+
+■ 語言設定精簡
+  - 語言偏好選項精簡為 5 種：英文、日文、韓文、簡體中文、繁體中文
+  - 副字幕從 1/2/3 優先序簡化為單一選單
+  - 副字幕切換只影響當前影片，不覆蓋全域偏好
+  - 設定頁「語言偏好」顯示目前偏好語言（唯讀）
+
+■ Debug Relay 工具（開發用）
+  - relay-server.js：WebSocket server，可即時接收套件 console log
+  - 預設關閉，需要時取消 content.js / inject.js 內的註解並執行 node relay-server.js
+
+■ 字幕列表互動優化
+  - Hover 字幕列表時凍結高亮捲動，方便右鍵儲存單字或點擊查字典
+  - Active 字幕固定在列表中央（可看到上下文）
+
+【修正】
+
+- 展開 sidebar 時隱藏右側推薦欄，避免在 1280/1440px 下被部分遮蓋
+- Onboarding 改為 overlay 疊加，不再清空 body DOM（修正 initSidebar crash）
+- 移除已廢除的 ⏻ 按鈕殘留引用（修正載入後字幕完全不顯示）
+- 翻譯批次遞迴爆 call stack（scheduleNextTranslationBatch 改用 setTimeout(0)）
+- 合輯播放模式下「當前影片生字」為空（saveWord 傳遞正確 videoId）
+- lemmatize 還原錯誤時查字典 / 儲存單字改用原始詞 fallback
+- stale allTracks 造成 404（Innertube UNPLAYABLE 後清空舊 tracks）
+- 主副字幕 Google 翻譯 job 競爭（primaryTranslationJob 獨立化）
+
+---
+
 v4.1 更新紀錄（2026-04-13）
 ============================
 
