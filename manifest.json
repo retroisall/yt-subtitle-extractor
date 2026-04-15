@@ -3,7 +3,7 @@
   "name": "YT Subtitle Demo",
   "version": "4.3",
   "description": "自動提取 YouTube 字幕並同步顯示",
-  "permissions": ["storage", "identity"],
+  "permissions": ["storage", "identity", "tabs"],
   "host_permissions": [
     "*://www.youtube.com/*",
     "https://translate.googleapis.com/*",
@@ -36,6 +36,10 @@
     {
       "resources": ["inject.js", "banner.png"],
       "matches": ["*://www.youtube.com/*"]
+    },
+    {
+      "resources": ["editor.html", "editor.js", "editor.css"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

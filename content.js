@@ -198,6 +198,10 @@
         <!-- TAB 1：字幕 -->
         <div class="yt-sub-panel active" id="yt-sub-panel-subtitle">
           <div class="yt-sub-langs" id="yt-sub-langs"></div>
+          <div class="yt-sub-panel-actions">
+            <button id="yt-sub-custom-btn" class="yt-sub-action-btn">✏ 自定義字幕</button>
+            <button id="yt-sub-community-btn" class="yt-sub-action-btn yt-sub-community-btn" disabled>👥 社群字幕 <span id="yt-sub-community-count" class="yt-sub-community-badge">0</span></button>
+          </div>
           <div class="yt-sub-current" id="yt-sub-current">
             <div class="yt-sub-current-primary" id="yt-sub-cur-primary"></div>
             <div class="yt-sub-current-secondary" id="yt-sub-cur-secondary"></div>
@@ -395,6 +399,26 @@
 
     updateOverlayRight();
 
+    // ===== 自定義字幕按鈕：傳送字幕資料至 background 並開啟編輯器分頁 =====
+    document.getElementById('yt-sub-custom-btn')?.addEventListener('click', () => {
+      // 先將當前字幕資料暫存至 background
+      chrome.runtime.sendMessage({
+        type: 'editor_setSubtitles',
+        videoId: new URLSearchParams(location.search).get('v'),
+        videoTitle: document.title.replace(' - YouTube', ''),
+        primarySubtitles,
+        secondarySubtitles,
+      }, () => {
+        // 資料存好後開啟編輯器分頁
+        chrome.runtime.sendMessage({ type: 'editor_open' });
+      });
+    });
+
+    // ===== 社群字幕按鈕：查詢並顯示清單 =====
+    document.getElementById('yt-sub-community-btn')?.addEventListener('click', () => {
+      showCommunitySubtitlePicker();
+    });
+
     // 重新載入字幕
     document.getElementById('yt-sub-refresh-btn').addEventListener('click', () => {
       if (translationJob) { translationJob.cancelled = true; translationJob = null; }
@@ -404,6 +428,9 @@
       _rawPrimarySubtitles = [];
       secondarySubtitles = [];
       trackList = [];
+      // 手動重新載入時解除自定義/社群字幕封鎖，重新從 YT 取得
+      customSubtitleActive = false;
+      setActiveSourceBtn(null);
       applyOverlay(); // 無字幕，撤掉 overlay 並恢復原生字幕
       if (syncInterval) clearInterval(syncInterval);
       const statusEl = document.getElementById('yt-sub-status');
@@ -1436,7 +1463,7 @@
 
   function loadSubtitle(track, tag = 'primary', langOverride = null) {
     const langCode = langOverride || track.languageCode;
-    if (tag === 'primary') {
+    if (tag === 'primary' && !customSubtitleActive) {
       const statusEl = document.getElementById('yt-sub-status');
       if (statusEl) { statusEl.textContent = `載入主字幕（${track.name}）...`; statusEl.className = 'yt-sub-status'; }
     }
@@ -2768,6 +2795,8 @@
 
   // ===== 訊息監聽 =====
   let captionsDebounce = null;
+  // 當使用自定義或社群字幕時，略過來自 YT 的字幕資料
+  let customSubtitleActive = false;
   window.addEventListener('message', function (event) {
     if (event.data?.type === 'YT_SUBTITLE_DEMO_CAPTIONS') {
       clearTimeout(captionsDebounce);
@@ -2775,6 +2804,9 @@
     }
 
     if (event.data?.type === 'YT_SUBTITLE_DEMO_SUBTITLE_DATA') {
+      // 使用自定義或社群字幕時，略過 YT 字幕資料，避免覆蓋
+      if (customSubtitleActive) return;
+
       const tag = event.data.tag || 'primary';
       const statusEl = document.getElementById('yt-sub-status');
 
@@ -2826,6 +2858,8 @@
 
       renderSubtitleList();
       startSync();
+      // 主字幕載入完成後，查詢社群字幕數量並更新按鈕狀態
+      if (tag === 'primary') fetchCommunitySubtitles();
     }
   });
 
@@ -2845,6 +2879,9 @@
       secondarySubtitles = [];
       trackList = [];
       pendingPrimaryTranslation = null;
+      // 換影片時重置自定義/社群字幕狀態，允許新影片重新從 YT 取得字幕
+      customSubtitleActive = false;
+      setActiveSourceBtn(null);
       applyOverlay(); // 換頁時撤掉 overlay
       applyLayoutMode('overlay'); // 換頁時先還原版面，等字幕載入後 expandSidebar 再推開
       // 離開影片頁（回首頁或其他非 watch 頁）→ 自動收合
@@ -2916,4 +2953,190 @@
   } else {
     init();
   }
+
+  // ===== 社群字幕：查詢與載入 =====
+
+  /**
+   * 查詢當前影片的社群字幕數量，有資料時解鎖社群字幕按鈕
+   */
+  function fetchCommunitySubtitles() {
+    const videoId = new URLSearchParams(location.search).get('v') || '';
+    if (!videoId) return;
+    const btn = document.getElementById('yt-sub-community-btn');
+    const badge = document.getElementById('yt-sub-community-count');
+    if (!btn || !badge) return;
+
+    chrome.runtime.sendMessage({ type: 'fb_getCommunitySubtitles', videoId }, (res) => {
+      if (!res?.ok || !res.entries?.length) return;
+      badge.textContent = res.entries.length;
+      btn.disabled = false;
+
+      // 若本地記錄了上次選擇的社群字幕，自動套用
+      chrome.storage.local.get(`lastCommunitySubtitle_${videoId}`, (stored) => {
+        const saved = stored[`lastCommunitySubtitle_${videoId}`];
+        if (!saved) return;
+
+        // 提前設定 flag，避免後續 YT 字幕資料或 loadSubtitle 覆蓋狀態
+        customSubtitleActive = true;
+
+        if (saved.primarySubtitles?.length)   primarySubtitles   = saved.primarySubtitles;
+        if (saved.secondarySubtitles?.length) secondarySubtitles = saved.secondarySubtitles;
+        renderSubtitleList();
+        startSync();
+        setActiveSourceBtn('community');
+
+        const statusEl = document.getElementById('yt-sub-status');
+        if (statusEl) {
+          statusEl.textContent = `社群字幕：${saved.subtitleName || '未命名'}（by ${saved.authorName || '匿名'}）`;
+          statusEl.className = 'yt-sub-status success';
+        }
+      });
+    });
+  }
+
+  /**
+   * 彈出社群字幕選擇面板，讓使用者選擇要載入的字幕版本
+   */
+  function showCommunitySubtitlePicker() {
+    const videoId = new URLSearchParams(location.search).get('v') || '';
+    if (!videoId) return;
+
+    // 移除舊的 picker（避免重複）
+    document.getElementById('yt-sub-community-picker')?.remove();
+
+    chrome.runtime.sendMessage({ type: 'fb_getCommunitySubtitles', videoId }, (res) => {
+      if (!res?.ok || !res.entries?.length) {
+        alert('目前沒有社群字幕可用。');
+        return;
+      }
+
+      // 建立 picker 面板
+      const picker = document.createElement('div');
+      picker.id = 'yt-sub-community-picker';
+      picker.className = 'yt-sub-community-picker';
+      picker.innerHTML = `
+        <div class="yt-sub-community-picker-header">
+          <span>👥 社群字幕（${res.entries.length} 筆）</span>
+          <button class="yt-sub-community-picker-close">✕</button>
+        </div>
+        <ul class="yt-sub-community-picker-list">
+          ${res.entries.map((e, i) => `
+            <li class="yt-sub-community-picker-item" data-idx="${i}">
+              <div class="yt-sub-community-item-name">${escapeHtml(e.subtitleName || '未命名')}</div>
+              <div class="yt-sub-community-item-meta">by ${escapeHtml(e.authorName || '匿名')} · ${res.entries[i].primarySubtitles?.length || 0} 句</div>
+            </li>
+          `).join('')}
+        </ul>
+      `;
+
+      // 關閉按鈕
+      picker.querySelector('.yt-sub-community-picker-close').addEventListener('click', () => picker.remove());
+
+      // 選擇項目 → 載入字幕
+      picker.querySelectorAll('.yt-sub-community-picker-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const idx = parseInt(item.dataset.idx);
+          const entry = res.entries[idx];
+          if (!entry) return;
+
+          // 替換主/副字幕
+          if (entry.primarySubtitles?.length) {
+            primarySubtitles = entry.primarySubtitles;
+            _rawPrimarySubtitles = entry.primarySubtitles;
+          }
+          if (entry.secondarySubtitles?.length) {
+            secondarySubtitles = entry.secondarySubtitles;
+          }
+
+          renderSubtitleList();
+          startSync();
+          picker.remove();
+          setActiveSourceBtn('community');
+
+          // 記錄此次選擇，下次開啟同影片自動套用
+          chrome.storage.local.set({ [`lastCommunitySubtitle_${videoId}`]: entry });
+
+          // 更新狀態文字
+          const statusEl = document.getElementById('yt-sub-status');
+          if (statusEl) {
+            statusEl.textContent = `社群字幕：${entry.subtitleName || '未命名'}（by ${entry.authorName || '匿名'}）`;
+            statusEl.className = 'yt-sub-status success';
+          }
+        });
+      });
+
+      // 附加到面板上
+      const panel = document.getElementById('yt-sub-panel-subtitle');
+      if (panel) panel.appendChild(picker);
+      else document.body.appendChild(picker);
+    });
+  }
+
+  /**
+  /**
+   * 標示目前使用中的字幕來源按鈕（紫色底色），另一個恢復預設
+   * @param {'custom'|'community'|null} source
+   */
+  function setActiveSourceBtn(source) {
+    const customBtn    = document.getElementById('yt-sub-custom-btn');
+    const communityBtn = document.getElementById('yt-sub-community-btn');
+    customBtn?.classList.toggle('active-source',    source === 'custom');
+    communityBtn?.classList.toggle('active-source', source === 'community');
+    // 有自定義/社群字幕來源時，封鎖 YT 字幕覆蓋
+    customSubtitleActive = source !== null;
+  }
+
+  // ===== 來自編輯器的訊息監聽 =====
+  // 接收 editor.html 透過 background relay 傳來的播放控制指令
+  chrome.runtime.onMessage.addListener((msg) => {
+    // 跳轉到指定時間點並播放，若帶有 endTime 則播完後暫停
+    if (msg.type === 'SEEK_TO') {
+      const video = document.querySelector('video');
+      if (!video) return;
+      video.currentTime = msg.time;
+      video.play();
+      if (msg.endTime && msg.endTime > msg.time) {
+        // 用 timeupdate 偵測到達結束時間後暫停（比 setTimeout 更準確）
+        const onTimeUpdate = () => {
+          if (video.currentTime >= msg.endTime) {
+            video.pause();
+            video.removeEventListener('timeupdate', onTimeUpdate);
+          }
+        };
+        video.addEventListener('timeupdate', onTimeUpdate);
+      }
+    }
+
+    // 設定循環播放特定字幕句
+    if (msg.type === 'LOOP_LINE') {
+      // 利用現有 loopingIdx 機制，找到對應的字幕 index
+      const idx = primarySubtitles.findIndex(s => Math.abs(s.startTime - msg.startTime) < 0.1);
+      if (idx >= 0) {
+        loopingIdx = idx;
+        const video = document.querySelector('video');
+        if (video) { video.currentTime = msg.startTime; video.play(); }
+        updateCurrentLoopStyle();
+      }
+    }
+
+    // 停止循環播放
+    if (msg.type === 'LOOP_STOP') {
+      loopingIdx = -1;
+      updateCurrentLoopStyle();
+    }
+
+    // 套用編輯器儲存的字幕到 YT 前端，並標示自定義字幕按鈕為使用中
+    if (msg.type === 'APPLY_SUBTITLES') {
+      if (msg.primarySubtitles?.length)   primarySubtitles   = msg.primarySubtitles;
+      if (msg.secondarySubtitles?.length) secondarySubtitles = msg.secondarySubtitles;
+      renderSubtitleList();
+      startSync();
+      setActiveSourceBtn('custom');
+      const statusEl = document.getElementById('yt-sub-status');
+      if (statusEl) {
+        statusEl.textContent = '自定義字幕（本地）';
+        statusEl.className = 'yt-sub-status success';
+      }
+    }
+  });
 })();

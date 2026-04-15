@@ -3,13 +3,32 @@
 
 import {
   signInWithGoogle, signOut, restoreSession, getCurrentUser,
-  setDoc, getCollection, deleteDoc,
+  setDoc, getCollection, getCollectionPublic, deleteDoc,
 } from './firebase.js';
 
 // 啟動時嘗試恢復登入狀態
 restoreSession().then(user => {
   if (user) console.log('[YT-SUB] Firebase session 恢復：', user.email);
 }).catch(() => {});
+
+// ===== 編輯器：TabId 追蹤 =====
+// 記錄最後一個 active 的 YouTube 分頁
+let lastYtTabId = null;
+
+// 當分頁切換時，若是 YouTube 分頁則記錄 tabId
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (tab?.url?.includes('youtube.com')) lastYtTabId = tabId;
+});
+
+// 分頁更新時，若是 YouTube 分頁則記錄 tabId
+chrome.tabs.onUpdated.addListener((tabId, _, tab) => {
+  if (tab.url?.includes('youtube.com')) lastYtTabId = tabId;
+});
+
+// ===== 編輯器：字幕資料暫存 =====
+// 以 tabId 為 key 儲存各分頁的字幕資料
+const subtitleStore = {}; // { [tabId]: { videoId, videoTitle, primarySubtitles, secondarySubtitles } }
 
 // ===== 訊息處理 =====
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -133,6 +152,83 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           sendResponse({ ok: true, merged });
         })
         .catch(e => sendResponse({ ok: false, error: e.message }));
+      return true;
+    }
+
+    // ===== 編輯器 case =====
+
+    // 接收 content.js 傳送的字幕資料，以 tabId 為 key 暫存
+    case 'editor_setSubtitles': {
+      const tabId = sender.tab?.id;
+      if (tabId) {
+        lastYtTabId = tabId;
+        subtitleStore[tabId] = {
+          ytTabId: tabId,
+          videoId: msg.videoId,
+          videoTitle: msg.videoTitle,
+          primarySubtitles: msg.primarySubtitles,
+          secondarySubtitles: msg.secondarySubtitles,
+        };
+      }
+      sendResponse({ ok: true });
+      return false;
+    }
+
+    // 開啟編輯器分頁
+    case 'editor_open': {
+      const tabId = sender.tab?.id || lastYtTabId;
+      const url = chrome.runtime.getURL(`editor.html?tabId=${tabId}`);
+      chrome.tabs.create({ url });
+      sendResponse({ ok: true });
+      return false;
+    }
+
+    // 編輯器分頁取得字幕資料
+    case 'editor_getSubtitles': {
+      const data = subtitleStore[msg.ytTabId] || null;
+      sendResponse({ ok: !!data, data });
+      return false;
+    }
+
+    // 編輯器發送指令轉發給 YT 分頁
+    case 'editor_relay': {
+      const targetTabId = msg.ytTabId || lastYtTabId;
+      if (targetTabId) {
+        chrome.tabs.sendMessage(targetTabId, msg.payload).catch(() => {});
+      }
+      sendResponse({ ok: true });
+      return false;
+    }
+
+    // 分享字幕至社群（寫入 Firestore customSubtitles collection）
+    case 'fb_shareSubtitle': {
+      const user = getCurrentUser();
+      if (!user) { sendResponse({ ok: false, error: '未登入' }); return false; }
+      const { videoId, authorName, subtitleName, primarySubtitles: ps, secondarySubtitles: ss } = msg;
+      const docId = `${user.uid}_${Date.now()}`;
+      setDoc(`customSubtitles/${videoId}/entries/${docId}`, {
+        authorName,
+        subtitleName,
+        uploadedAt: Date.now(),
+        uploaderUid: user.uid,
+        primarySubtitles: ps,
+        secondarySubtitles: ss,
+      })
+        .then(() => sendResponse({ ok: true, docId }))
+        .catch(e  => sendResponse({ ok: false, error: e.message }));
+      return true;
+    }
+
+    // 讀取指定影片的社群字幕清單（最多20筆，依上傳時間降序，不需登入）
+    case 'fb_getCommunitySubtitles': {
+      const { videoId } = msg;
+      if (!videoId) { sendResponse({ ok: false, entries: [] }); return false; }
+      getCollectionPublic(`customSubtitles/${videoId}/entries`, {
+        orderBy: { field: 'uploadedAt', dir: 'DESCENDING' },
+        limit: 20,
+      })
+        .then(entries => sendResponse({ ok: true, entries }))
+        .catch(e      => sendResponse({ ok: false, error: e.message, entries: [] }));
       return true;
     }
 

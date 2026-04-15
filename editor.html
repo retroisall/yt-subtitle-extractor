@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>自定義字幕編輯器 — 學習Bar</title>
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+
+  <!-- ===== Topbar：Logo、標題、影片名稱、YT 連線狀態 ===== -->
+  <div id="ed-topbar">
+    <div class="ed-logo" title="學習Bar">
+      <span class="ed-logo-zh">學習</span><span class="ed-logo-bar">Bar</span>
+    </div>
+    <span class="ed-topbar-sep">/</span>
+    <span class="ed-topbar-title">自定義字幕編輯器</span>
+    <span class="ed-topbar-sep">/</span>
+    <span id="ed-video-title" title="">—</span>
+    <div class="ed-yt-status" title="YouTube 分頁連線狀態">
+      <span class="ed-yt-dot" id="ed-yt-dot"></span>
+      <span id="ed-yt-label">未連線</span>
+    </div>
+  </div>
+
+  <!-- ===== Meta 區：作者暱稱、字幕名稱、行數 badge ===== -->
+  <div id="ed-meta">
+    <input
+      id="ed-author"
+      class="ed-meta-input"
+      type="text"
+      placeholder="作者暱稱"
+      maxlength="40"
+    >
+    <input
+      id="ed-subname"
+      class="ed-meta-input"
+      type="text"
+      placeholder="字幕名稱"
+      maxlength="80"
+    >
+    <span class="ed-meta-badge" id="ed-line-count">0 句</span>
+  </div>
+
+  <!-- ===== Toolbar：搜尋、Toggle 按鈕、Focus 指示器 ===== -->
+  <div id="ed-toolbar">
+    <input
+      id="ed-search"
+      type="search"
+      placeholder="搜尋字幕內容..."
+      autocomplete="off"
+    >
+    <button id="ed-sync-btn" class="ed-toggle-btn" title="焦點移到字幕列時自動跳轉影片時間點">
+      ▶ 同步播放
+    </button>
+    <button id="ed-loop-btn" class="ed-toggle-btn" title="焦點移到字幕列時持續重播該句">
+      ⇄ 循環此句
+    </button>
+    <span id="ed-focus-indicator">未選取</span>
+    <span id="ed-row-count"></span>
+  </div>
+
+  <!-- ===== 表格區域 ===== -->
+  <div id="ed-table-wrap">
+    <table id="ed-table">
+      <colgroup>
+        <col><!-- # -->
+        <col><!-- 時間碼 -->
+        <col><!-- 主字幕 -->
+        <col><!-- 副字幕 -->
+        <col><!-- 操作 -->
+      </colgroup>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>時間碼</th>
+          <th>主字幕</th>
+          <th>副字幕</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="ed-tbody"></tbody>
+    </table>
+
+    <!-- 無資料狀態 -->
+    <div id="ed-no-data" style="display:none">
+      <div class="ed-no-data-icon">📋</div>
+      <p>
+        沒有字幕資料。<br>
+        請先在 YouTube 頁面載入字幕，<br>
+        再點擊「✏ 自定義字幕」按鈕。
+      </p>
+    </div>
+  </div>
+
+  <!-- ===== Footer：循環狀態、匯出、分享 ===== -->
+  <div id="ed-footer">
+    <div id="ed-loop-status">
+      <span class="ed-loop-indicator"></span>
+      <span id="ed-loop-text">循環中...</span>
+    </div>
+    <div class="ed-footer-actions">
+      <button id="ed-save-local-btn" class="ed-footer-btn" title="儲存編輯內容到本地（重新安裝擴充功能後會遺失）">
+        💾 儲存本地
+      </button>
+      <button id="ed-export-btn" class="ed-footer-btn" title="匯出為 .srt 格式">
+        匯出 .srt
+      </button>
+      <button id="ed-share-btn" class="ed-footer-btn primary" title="分享至社群">
+        分享至社群
+      </button>
+    </div>
+  </div>
+
+  <script type="module" src="editor.js"></script>
+</body>
+</html>

@@ -433,6 +433,134 @@
   border-color: #7c3aed;
 }
 
+/* ===== 自定義字幕 / 社群字幕 操作按鈕列 ===== */
+.yt-sub-panel-actions {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  flex-shrink: 0;
+}
+
+.yt-sub-action-btn {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1.5px solid #27272a;
+  background: #18181b;
+  color: #fafafa;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: 'Inter', -apple-system, sans-serif;
+  transition: border-color 0.2s, background 0.2s;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.yt-sub-action-btn:hover:not(:disabled) {
+  border-color: #7c3aed;
+  background: rgba(124, 58, 237, 0.12);
+}
+
+.yt-sub-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 社群字幕按鈕（右側，暫為灰色）*/
+.yt-sub-community-btn {
+  border-color: #3f3f46;
+  color: #a1a1aa;
+}
+
+/* 正在使用中的字幕來源：紫色底色 */
+.yt-sub-action-btn.active-source {
+  background: rgba(124, 58, 237, 0.85);
+  border-color: #7c3aed;
+  color: #fff;
+}
+
+.yt-sub-action-btn.active-source:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 1);
+}
+
+/* 社群字幕計數 badge */
+.yt-sub-community-badge {
+  display: inline-block;
+  background: #27272a;
+  color: #a1a1aa;
+  border-radius: 10px;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 16px;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+/* ===== 社群字幕選擇面板 ===== */
+.yt-sub-community-picker {
+  margin-top: 8px;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.yt-sub-community-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #1c1c1f;
+  border-bottom: 1px solid #27272a;
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+.yt-sub-community-picker-close {
+  background: none;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.yt-sub-community-picker-close:hover {
+  color: #e4e4e7;
+}
+
+.yt-sub-community-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.yt-sub-community-picker-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.yt-sub-community-picker-item:hover {
+  background: #27272a;
+}
+
+.yt-sub-community-item-name {
+  font-size: 13px;
+  color: #e4e4e7;
+  margin-bottom: 2px;
+}
+
+.yt-sub-community-item-meta {
+  font-size: 11px;
+  color: #71717a;
+}
+
 /* ===== 當前字幕大字 ===== */
 .yt-sub-current {
   padding: 10px 12px;

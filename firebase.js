@@ -235,6 +235,29 @@ export async function getCollection(collectionPath, { orderBy, limit } = {}) {
   return json.filter(r => r.document).map(r => _fromFsDoc(r.document));
 }
 
+// 公開查詢（不需登入，適用 Firestore rules allow read: if true 的 collection）
+export async function getCollectionPublic(collectionPath, { orderBy, limit } = {}) {
+  const parts = collectionPath.split('/');
+  const query = {
+    structuredQuery: {
+      from:    [{ collectionId: parts[parts.length - 1] }],
+      orderBy: orderBy ? [{ field: { fieldPath: orderBy.field }, direction: orderBy.dir || 'DESCENDING' }] : undefined,
+      limit:   limit || 1000,
+    },
+  };
+  const parentPath = parts.slice(0, -1).join('/');
+  // 使用 apiKey 參數取代 Bearer token，Firestore REST API 支援此方式進行公開讀取
+  const url = `${FIRESTORE_BASE}/${parentPath}:runQuery?key=${FIREBASE_CONFIG.apiKey}`;
+  const res = await fetch(url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(query),
+  });
+  const json = await res.json();
+  if (!Array.isArray(json)) throw new Error('查詢失敗');
+  return json.filter(r => r.document).map(r => _fromFsDoc(r.document));
+}
+
 // 刪除文件
 export async function deleteDoc(docPath) {
   const token = await _getIdToken();
