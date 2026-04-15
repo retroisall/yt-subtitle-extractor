@@ -1,15 +1,23 @@
 {
   "manifest_version": 3,
   "name": "YT Subtitle Demo",
-  "version": "1.0",
+  "version": "4.3",
   "description": "自動提取 YouTube 字幕並同步顯示",
-  "permissions": ["storage"],
+  "permissions": ["storage", "identity"],
   "host_permissions": [
     "*://www.youtube.com/*",
     "https://translate.googleapis.com/*",
     "https://api.dictionaryapi.dev/*",
-    "https://api.datamuse.com/*"
+    "https://api.datamuse.com/*",
+    "https://firestore.googleapis.com/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*",
+    "https://accounts.google.com/*"
   ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "content_scripts": [
     {
       "matches": ["*://www.youtube.com/*"],
@@ -26,7 +34,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["inject.js"],
+      "resources": ["inject.js", "banner.png"],
       "matches": ["*://www.youtube.com/*"]
     }
   ]

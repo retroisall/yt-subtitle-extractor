@@ -292,6 +292,97 @@ scheduleNextTranslationBatch()
 | **sidebar 高度超出影片底部（push 順序錯誤）** | `applyLayoutMode('push')` 先呼叫 `syncWrapperToPlayer` 再設 `margin-right`，wrapper 記錄的是 push 前的影片高度；push 後影片縮小，wrapper 仍保留較大的高度，sidebar 下緣超出影片底部壓到標題 | 改為先設 `margin-right`，再呼叫 `syncWrapperToPlayer`；此時讀到的是 push 後影片的實際高度，wrapper bottom = player bottom |
 | **1280/1440px `#secondary` 被 sidebar 部分遮蓋** | YouTube secondary 欄最小寬度約 348px，primary + secondary 合計 988–1201px，超過 `viewport - 360px`；`margin-right` 和 `padding-right` 都無法讓 secondary 縮到 sidebar 左邊 | sidebar 展開時直接 `#secondary { display: none !important }`，收合時 `removeProperty('display')`；1920px 以上影片內容不被遮，不需要隱藏 |
 | **合輯模式生字本「當前影片」為空** | `saveWord` 的 `videoId` 同步取自 `location.search`，但 `chrome.storage.local.get` callback 是 async；SPA 自動播放下一部時 URL 已切換，callback 執行時 `renderWordbook()` 用新 URL 過濾，找不到剛存的字 | `saveWord` 把已確認的 `videoId` 傳給 `renderWordbook(forceVideoId)`，強制使用存字當下的 videoId 過濾 |
+| **OAuth nonce 參數不相容** | `launchWebAuthFlow` 使用 `response_type=token`（implicit flow），不支援 nonce 參數（nonce 只用於 id_token flow）；加了 nonce 後 Google 回傳「Parameter not allowed for this message type: nonce」 | 移除 OAuth URL 中的 nonce 參數 |
+| **Chrome App OAuth vs Web Application** | 建立 OAuth client 時若選「Chrome App」類型，Google 要求上架 Chrome Web Store 才允許使用；開發中套件無法登入 | 改用「Web Application」類型，將 `https://<extensionId>.chromiumapp.org/` 加入授權重新導向 URI |
+| **Service worker 重啟導致登入狀態消失** | MV3 service worker 閒置後會被 Chrome 終止，記憶體中的 `_idToken`、`_userInfo` 全部清空；下次啟動時 content.js 的 `fb_getUser` 在 `restoreSession` 完成前就發出，拿到 null 誤判未登入 | content.js 初始化時若第一次 `fb_getUser` 回傳 null，延遲 1.5 秒後重試；同時在 click handler 中也補呼叫 `updateAccountUI` 確保 UI 同步 |
+| **Firestore PATCH 覆寫欄位** | 未設 `updateMask` 的 PATCH 請求會清除目標文件的所有欄位後再寫入，若資料有 race condition 可能導致欄位遺失 | 已知問題，目前資料模型以 word 為單位整筆覆寫，可接受；未來若有 partial update 需求再補 updateMask |
+| **LED 初始狀態錯誤** | `expandSidebar()` 不呼叫 `updateBallDot`，LED 停在 idle；`startSync()` 啟動有延遲，中間狀態空白或殘留舊值 | 找到字幕時先 `setLedState('loading')` 再 `expandSidebar()`，`startSync()` 啟動時再切換成 `has-sub` 或 `paused` |
+
+---
+
+## Firebase 雲端同步架構
+
+### 認證流程（launchWebAuthFlow）
+
+```
+用戶點擊帳號按鈕
+  └→ content.js 發 fb_signIn 訊息給 background.js
+      └→ chrome.identity.launchWebAuthFlow({ url: OAuth URL, interactive: true })
+          └→ Google OAuth 彈窗 → 用戶同意
+              └→ redirect 到 https://<extensionId>.chromiumapp.org/#access_token=...
+                  └→ 從 hash 取 access_token
+                      └→ POST /accounts:signInWithIdp?key=APIKEY
+                          └→ 取得 idToken + refreshToken
+                              └→ 存入 chrome.storage.local
+```
+
+**為什麼用 `launchWebAuthFlow` 而非 `getAuthToken`：**
+- `getAuthToken` 需要套件上架 Chrome Web Store
+- `launchWebAuthFlow` + Web Application OAuth client 在開發中套件即可使用
+- redirect URI 格式：`https://<extensionId>.chromiumapp.org/`（Chrome 擴充套件專用 scheme）
+
+### Token 自動更新
+
+- `idToken` 有效期 1 小時（減 60 秒安全邊界）
+- 每次 Firestore API 呼叫前先呼叫 `_getIdToken()`
+- 若 token 已過期，自動用 `refreshToken` 向 `securetoken.googleapis.com/v1/token` 換新
+- 新 refreshToken 存回 `chrome.storage.local`（sliding expiry）
+
+### 雙向同步邏輯（fb_biSync）
+
+```
+本地 words (Map)  ×  雲端 words (Firestore)
+        ↓
+  對所有 key 取聯集
+        ↓
+  ┌ 雙方都有 → 比較時間戳（deletedAt 優先於 addedAt），取較新者
+  ├ 只有本地 → 上傳到 Firestore
+  └ 只有雲端 → 拉回本地
+        ↓
+  toUpload → batch PATCH 到 Firestore
+        ↓
+  merged map → 寫回 chrome.storage.local
+```
+
+**衝突解決原則**：
+- 以 `deletedAt || addedAt` 的 Unix timestamp（ms）較大者為勝
+- 軟刪除記錄（有 deletedAt）也會上傳，讓其他裝置知道要刪除
+- 同步完後 `renderWordbook` 自動過濾 `deletedAt` 不顯示
+
+### Firestore 安全規則
+
+```js
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/words/{wordId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+```
+
+---
+
+## LED 點陣狀態指示器
+
+### Canvas 架構
+
+- 尺寸：5 列 × 3 行，dot size 4px，gap 2px → CSS 30×18px
+- DPR 縮放：`canvas.width = 30 * devicePixelRatio`，`ctx.scale(dpr, dpr)`，確保 Retina 清晰
+- 更新方式：`setLedState(state)` 驅動，依 anim 類型啟動 setInterval
+
+### 狀態對照表
+
+| 狀態 | 圖案 | 顏色 | 動畫 | 觸發時機 |
+|------|------|------|------|---------|
+| `idle` | 3 橫點 | 灰 #52525b | 靜止 | 無影片 / 非 watch 頁 |
+| `loading` | 流水燈（5點依序） | 紫 #a78bfa | loop 160ms | 字幕清單取得中 |
+| `has-sub` | 播放三角 ▶ | 綠 #4ade80 | 呼吸 50ms | 字幕播放中 |
+| `no-sub` | 叉形 ✕ | 紅 #ef4444 | 閃爍×3次 | 影片無字幕 |
+| `paused` | 雙豎線 ❚❚ | 黃 #fbbf24 | 呼吸 50ms | 影片暫停 |
+| `syncing` | 旋轉圓弧 | 紫 #a78bfa | loop 160ms | 雲端同步進行中 |
+| `signing-in` | G 字母 | 深紫 #7c3aed | 呼吸 50ms | Google 登入中 |
 
 ---
 

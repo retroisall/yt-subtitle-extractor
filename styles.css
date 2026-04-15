@@ -97,42 +97,174 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 11px 14px 10px;
+  padding: 6px 14px 6px;
   background: #18181b;
   border-radius: 12px 0 0 0;
   border-bottom: 1px solid #27272a;
   flex-shrink: 0;
+  min-height: 44px;
 }
 
-.yt-sub-header-icon {
-  width: 26px;
-  height: 26px;
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
-  border-radius: 6px;
+/* 頂部 App Icon（點陣等化器風格） */
+.yt-sub-app-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: 0 0 8px rgba(244,63,94,0.25), 0 0 0 1px rgba(244,63,94,0.15);
+}
+
+.yt-sub-app-icon svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+/* title 區塊（banner + LED 點陣並排）*/
+.yt-sub-title-area {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: #fff;
-}
-
-.yt-sub-header-icon svg {
-  width: 14px;
-  height: 14px;
-}
-
-.yt-sub-title {
+  gap: 8px;
   flex: 1;
+  min-width: 0;
+}
+
+/* Banner LOGO 圖片 */
+.yt-sub-banner {
+  height: 32px;     /* 填滿 header 高度（min-height 44 - padding 12 = 32）*/
+  width: auto;
+  object-fit: contain;
+  object-position: left center;
+  display: block;
+  min-width: 0;
+  image-rendering: pixelated;
+}
+
+/* =============================================
+   LOGO 風格系統（5 種，切換 .yt-sub-logo--style-X）
+   ============================================= */
+.yt-sub-logo {
+  white-space: nowrap;
+  line-height: 1;
+  user-select: none;
+}
+
+/* ── Style A：漸層紫色，中文粗 / Bar 細 ── */
+.yt-sub-logo--style-a .yt-sub-logo-zh {
   font-size: 13px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #a78bfa, #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.02em;
+}
+.yt-sub-logo--style-a .yt-sub-logo-bar {
+  font-size: 13px;
+  font-weight: 400;
+  color: #e4e4e7;
+  letter-spacing: -0.02em;
+  font-style: italic;
+}
+
+/* ── Style B：黑底白字膠囊 Tag 風（類標籤） ── */
+.yt-sub-logo--style-b {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.yt-sub-logo--style-b .yt-sub-logo-zh {
+  font-size: 13px;
+  font-weight: 700;
+  background: #7c3aed;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px 0 0 4px;
+  letter-spacing: 0.05em;
+}
+.yt-sub-logo--style-b .yt-sub-logo-bar {
+  font-size: 13px;
+  font-weight: 700;
+  background: #e4e4e7;
+  color: #18181b;
+  padding: 2px 6px;
+  border-radius: 0 4px 4px 0;
+  letter-spacing: -0.03em;
+}
+
+/* ── Style C：等寬字體 Monospace 工程師風 ── */
+.yt-sub-logo--style-c .yt-sub-logo-zh {
+  font-size: 12px;
   font-weight: 600;
+  color: #4ade80;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.08em;
+}
+.yt-sub-logo--style-c .yt-sub-logo-bar {
+  font-size: 12px;
+  font-weight: 400;
+  color: #71717a;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.05em;
+}
+.yt-sub-logo--style-c::before {
+  content: '> ';
+  color: #52525b;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+/* ── Style D：大小字分層，英文大寫超小 ── */
+.yt-sub-logo--style-d {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.yt-sub-logo--style-d .yt-sub-logo-zh {
+  font-size: 14px;
+  font-weight: 800;
   color: #fafafa;
+  letter-spacing: -0.03em;
+}
+.yt-sub-logo--style-d .yt-sub-logo-bar {
+  font-size: 8px;
+  font-weight: 600;
+  color: #a78bfa;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  align-self: center;
+  padding-bottom: 1px;
+}
+
+/* ── Style E：霓虹描邊發光風 ── */
+.yt-sub-logo--style-e .yt-sub-logo-zh {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 6px #a78bfa, 0 0 12px #7c3aed;
+  letter-spacing: 0.02em;
+}
+.yt-sub-logo--style-e .yt-sub-logo-bar {
+  font-size: 13px;
+  font-weight: 700;
+  color: #a78bfa;
+  text-shadow: 0 0 6px #7c3aed, 0 0 14px #6d28d9;
   letter-spacing: -0.01em;
+}
+
+/* 5×3 點陣 LED canvas */
+.yt-sub-led {
+  display: block;
+  flex-shrink: 0;
+  image-rendering: pixelated;
 }
 
 .yt-sub-header-btns {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;           /* 按鈕間距拉開，均勻排列 */
+  margin-right: 49px; /* 讓開右側球體位置（ball 36px + 間距）+ 左移 3px */
 }
 
 .yt-sub-icon-btn {
@@ -1429,3 +1561,109 @@
   outline: none;
   border-color: #7c3aed;
 }
+
+/* 帳號區塊按鈕 */
+.yt-sub-btn-small {
+  background: #3f3f46;
+  color: #e4e4e7;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.yt-sub-btn-small:hover { background: #52525b; }
+.yt-sub-btn-small:disabled { opacity: 0.5; cursor: default; }
+.yt-sub-btn-danger { background: #7f1d1d; }
+.yt-sub-btn-danger:hover { background: #991b1b; }
+
+/* ── Header 帳號 & 同步按鈕 ── */
+
+/* 同步 SVG 按鈕 */
+.yt-sub-sync-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.yt-sub-sync-icon-btn:hover { color: #a855f7; }
+
+/* 帳號按鈕：圓形，未登入灰框，已登入紫色底 */
+.yt-sub-account-btn {
+  background: #27272a;
+  border: 1.5px solid #3f3f46;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #71717a;
+  padding: 0;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.yt-sub-account-btn svg {
+  width: 15px;
+  height: 15px;
+}
+.yt-sub-account-btn:hover {
+  border-color: #7c3aed;
+  color: #a1a1aa;
+}
+/* 已登入：紫色實心圓 + 白 G */
+.yt-sub-account-btn--active {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+.yt-sub-account-btn--active:hover {
+  background: #6d28d9;
+  border-color: #6d28d9;
+}
+
+/* Dropdown */
+.yt-sub-account-dropdown {
+  position: absolute;
+  top: 46px;
+  right: 52px; /* 避開右側球體（ball right:14px + width:36px = 50px 佔用區）*/
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 10px;
+  padding: 10px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 190px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.yt-sub-account-email {
+  font-size: 11px;
+  color: #71717a;
+  word-break: break-all;
+  padding: 2px 2px 4px;
+  border-bottom: 1px solid #27272a;
+}
+.yt-sub-signout-btn {
+  background: transparent;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  color: #a1a1aa;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.yt-sub-signout-btn:hover {
+  background: #27272a;
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* 同步旋轉動畫 */
+@keyframes yt-sub-spin { to { transform: rotate(360deg); } }
+.yt-sub-syncing svg { animation: yt-sub-spin 0.8s linear infinite; }

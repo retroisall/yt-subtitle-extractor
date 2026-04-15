@@ -49,6 +49,7 @@
   let primaryTranslationJob = null;     // 主字幕翻譯 job（獨立於副字幕的 translationJob）
   let translationJob = null;
   let loopingIdx = -1;
+  let _playerRO = null; // ResizeObserver：監聽 player 大小變化以同步 wrapper 高度
   const translationCache = {};  // videoId:lang → subtitles array (max 10 entries)
   const TRANSLATION_CACHE_MAX = 10;
 
@@ -56,32 +57,32 @@
   const SETTINGS_KEY = 'yt-sub-settings';
 
   const SECONDARY_LANG_OPTIONS = [
-    { languageCode: 'zh-TW',   name: '繁體中文' },
+    { languageCode: 'zh-TW', name: '繁體中文' },
     { languageCode: 'zh-Hans', name: '簡體中文' },
-    { languageCode: 'en',      name: '英文' },
-    { languageCode: 'ja',      name: '日文' },
-    { languageCode: 'ko',      name: '韓文' },
-    { languageCode: 'es',      name: '西班牙文' },
-    { languageCode: 'fr',      name: '法文' },
-    { languageCode: 'de',      name: '德文' },
-    { languageCode: 'id',      name: '印尼文' },
-    { languageCode: 'th',      name: '泰文' },
-    { languageCode: 'vi',      name: '越南文' },
-    { languageCode: 'pt',      name: '葡萄牙文' },
-    { languageCode: 'ar',      name: '阿拉伯文' },
-    { languageCode: 'ru',      name: '俄文' },
+    { languageCode: 'en', name: '英文' },
+    { languageCode: 'ja', name: '日文' },
+    { languageCode: 'ko', name: '韓文' },
+    { languageCode: 'es', name: '西班牙文' },
+    { languageCode: 'fr', name: '法文' },
+    { languageCode: 'de', name: '德文' },
+    { languageCode: 'id', name: '印尼文' },
+    { languageCode: 'th', name: '泰文' },
+    { languageCode: 'vi', name: '越南文' },
+    { languageCode: 'pt', name: '葡萄牙文' },
+    { languageCode: 'ar', name: '阿拉伯文' },
+    { languageCode: 'ru', name: '俄文' },
   ];
 
   const FONT_SIZES = {
-    primary:   { sm: '11px', md: '13px', lg: '16px' },
+    primary: { sm: '11px', md: '13px', lg: '16px' },
     secondary: { sm: '10px', md: '12px', lg: '14px' },
   };
 
   const SECONDARY_COLORS = {
     purple: '#a855f7',
-    cyan:   '#22d3ee',
+    cyan: '#22d3ee',
     yellow: '#fbbf24',
-    white:  '#e0e0e0',
+    white: '#e0e0e0',
   };
 
   // ===== 設定 =====
@@ -97,32 +98,32 @@
         }
         return { ...defaultSettings(), ...parsed };
       }
-    } catch (e) {}
+    } catch (e) { }
     return defaultSettings();
   }
 
   function defaultSettings() {
     return {
-      primaryLang:    'en',
-      primaryVssId:   null,
+      primaryLang: 'en',
+      primaryVssId: null,
       secondaryLangs: ['zh-TW', '__none__', '__none__'],  // 優先權 1→2→3
-      dualEnabled:    true,
-      asrLang:        'en',
-      primarySize:    'md',
-      secondarySize:  'sm',
+      dualEnabled: true,
+      asrLang: 'en',
+      primarySize: 'md',
+      secondarySize: 'sm',
       secondaryColor: 'purple',
-      clickToSeek:    true,
-      autoScroll:     true,
+      clickToSeek: true,
+      autoScroll: true,
       overlayEnabled: true,
-      loopSentence:   true,   // 單句循環
+      loopSentence: true,   // 單句循環
       translationProvider: 'ytlang',  // ytlang | google
-      googleBatchMode:    'sentence8', // sentence8 | words100
-      wordHover:      true,   // 單字 hover 高亮
-      wordSpeak:      true,   // 點擊單字朗讀
-      extensionEnabled:  true, // 套件整體開關
-      extendSubtitles:   true, // 延長字幕顯示（填滿字幕間的空白間隔）
-      subtitleOffset:    0,    // 字幕時間偏移（秒），正數延後、負數提前，範圍 ±30
-      onboardingDone:    false, // 是否已完成語言初始設定
+      googleBatchMode: 'sentence8', // sentence8 | words100
+      wordHover: true,   // 單字 hover 高亮
+      wordSpeak: true,   // 點擊單字朗讀
+      extensionEnabled: true, // 套件整體開關
+      extendSubtitles: true, // 延長字幕顯示（填滿字幕間的空白間隔）
+      subtitleOffset: 0,    // 字幕時間偏移（秒），正數延後、負數提前，範圍 ±30
+      onboardingDone: false, // 是否已完成語言初始設定
     };
   }
 
@@ -150,15 +151,40 @@
     sidebar.id = 'yt-sub-demo-sidebar';
     sidebar.innerHTML = `
       <div class="yt-sub-header">
-        <div class="yt-sub-header-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 6h16M4 12h10M4 18h7"/>
-          </svg>
+        <div class="yt-sub-title-area">
+          <!-- LOGO：膠囊 Tag 風格 -->
+          <div class="yt-sub-logo yt-sub-logo--style-b">
+            <span class="yt-sub-logo-zh">學習</span><span class="yt-sub-logo-bar">Bar</span>
+          </div>
+          <!-- 5×3 點陣狀態指示器 -->
+          <canvas id="yt-sub-led" class="yt-sub-led" title="狀態指示"></canvas>
         </div>
-        <span class="yt-sub-title">字幕提取器</span>
         <div class="yt-sub-header-btns">
           <button class="yt-sub-icon-btn reload" id="yt-sub-refresh-btn" title="重新載入字幕">↺</button>
+          <!-- 同步按鈕：cloud + arrows SVG -->
+          <button class="yt-sub-icon-btn yt-sub-sync-icon-btn" id="yt-sub-cloud-sync-btn" title="雙向同步單字" style="display:none">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.5 9A4.5 4.5 0 0 0 6.2 7H5a3 3 0 0 0 0 6h1"/>
+              <polyline points="10 13 12.5 10.5 10 8"/>
+              <polyline points="12.5 10.5 7 10.5"/>
+            </svg>
+          </button>
+          <!-- 帳號按鈕 -->
+          <button class="yt-sub-account-btn" id="yt-sub-account-btn" title="帳號">
+            <!-- 未登入：人像 -->
+            <svg id="yt-sub-avatar-guest" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="10" cy="7" r="3"/>
+              <path d="M3.5 17c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/>
+            </svg>
+            <!-- 已登入：G 字樣 -->
+            <span id="yt-sub-avatar-loggedin" style="display:none;font-size:12px;font-weight:700;color:#fff;line-height:1">G</span>
+          </button>
         </div>
+      </div>
+      <!-- 帳號 Dropdown -->
+      <div id="yt-sub-account-dropdown" class="yt-sub-account-dropdown" style="display:none">
+        <span id="yt-sub-account-email-disp" class="yt-sub-account-email"></span>
+        <button id="yt-sub-signout-btn" class="yt-sub-signout-btn">登出</button>
       </div>
 
       <div class="yt-sub-tab-bar" id="yt-sub-tab-bar">
@@ -332,11 +358,21 @@
               </div>
             </div>
 
+
+            <!-- 版本號 -->
+            <div style="text-align:right;padding:8px 4px 0;font-size:10px;color:#52525b;">
+              v${chrome.runtime.getManifest().version}
+            </div>
+
           </div>
         </div>
 
       </div>
     `;
+    // 填入 banner 圖片的 extension URL（content script 無法直接用相對路徑）
+    const bannerEl = sidebar.querySelector('#yt-sub-banner');
+    if (bannerEl) bannerEl.src = chrome.runtime.getURL('banner.png');
+
     // wrapper：把 sidebar + ball 包在同一個容器，clip-path 只作用於 sidebar，不影響 ball
     const wrapper = document.createElement('div');
     wrapper.id = 'yt-sub-wrapper';
@@ -364,7 +400,7 @@
       if (translationJob) { translationJob.cancelled = true; translationJob = null; }
       if (primaryTranslationJob) { primaryTranslationJob.cancelled = true; primaryTranslationJob = null; }
       if (_nextBatchTimer) { clearTimeout(_nextBatchTimer); _nextBatchTimer = null; }
-      primarySubtitles     = [];
+      primarySubtitles = [];
       _rawPrimarySubtitles = [];
       secondarySubtitles = [];
       trackList = [];
@@ -372,14 +408,15 @@
       if (syncInterval) clearInterval(syncInterval);
       const statusEl = document.getElementById('yt-sub-status');
       if (statusEl) { statusEl.textContent = '重新載入中...'; statusEl.className = 'yt-sub-status'; }
+      setLedState('loading');
       const listEl = document.getElementById('yt-sub-list');
       if (listEl) listEl.innerHTML = '';
       const langsEl = document.getElementById('yt-sub-langs');
       if (langsEl) langsEl.innerHTML = '';
       const curPrim = document.getElementById('yt-sub-cur-primary');
-      const curSec  = document.getElementById('yt-sub-cur-secondary');
+      const curSec = document.getElementById('yt-sub-cur-secondary');
       if (curPrim) curPrim.textContent = '';
-      if (curSec)  curSec.textContent  = '';
+      if (curSec) curSec.textContent = '';
       window.postMessage({ type: 'YT_SUBTITLE_DEMO_REQUEST' }, '*');
     });
 
@@ -500,9 +537,9 @@
     });
 
     // ── 行為設定 ───────────────────────────────────────────────
-    const clickSeekEl   = document.getElementById('yt-sub-click-seek');
-    const autoScrollEl  = document.getElementById('yt-sub-auto-scroll');
-    clickSeekEl.checked  = settings.clickToSeek;
+    const clickSeekEl = document.getElementById('yt-sub-click-seek');
+    const autoScrollEl = document.getElementById('yt-sub-auto-scroll');
+    clickSeekEl.checked = settings.clickToSeek;
     autoScrollEl.checked = settings.autoScroll;
 
     clickSeekEl.addEventListener('change', () => {
@@ -558,10 +595,10 @@
     });
 
     // 字幕時間偏移滑桿
-    const offsetSlider  = document.getElementById('yt-sub-offset-slider');
+    const offsetSlider = document.getElementById('yt-sub-offset-slider');
     const offsetDisplay = document.getElementById('yt-sub-offset-display');
-    const formatOffset  = v => (v >= 0 ? '+' : '') + parseFloat(v).toFixed(1) + 's';
-    offsetSlider.value  = settings.subtitleOffset;
+    const formatOffset = v => (v >= 0 ? '+' : '') + parseFloat(v).toFixed(1) + 's';
+    offsetSlider.value = settings.subtitleOffset;
     offsetDisplay.textContent = formatOffset(settings.subtitleOffset);
     offsetSlider.addEventListener('input', () => {
       settings.subtitleOffset = parseFloat(offsetSlider.value);
@@ -589,6 +626,273 @@
     applyDisplaySettings();
     updateSizeGroupUI();
     updateSwatchGroupUI();
+
+    // ===== Google 帳號區塊 =====
+    // ===== Header 帳號 & 同步 =====
+    function updateAccountUI(user) {
+      const guestSvg = document.getElementById('yt-sub-avatar-guest');
+      const loggedInG = document.getElementById('yt-sub-avatar-loggedin');
+      const accountBtn = document.getElementById('yt-sub-account-btn');
+      const syncBtn = document.getElementById('yt-sub-cloud-sync-btn');
+      const emailDisp = document.getElementById('yt-sub-account-email-disp');
+      if (user) {
+        if (guestSvg) guestSvg.style.display = 'none';
+        if (loggedInG) loggedInG.style.display = '';
+        if (accountBtn) accountBtn.classList.add('yt-sub-account-btn--active');
+        if (syncBtn) syncBtn.style.display = '';
+        if (emailDisp) emailDisp.textContent = user.email || user.displayName || '已登入';
+      } else {
+        if (guestSvg) guestSvg.style.display = '';
+        if (loggedInG) loggedInG.style.display = 'none';
+        if (accountBtn) accountBtn.classList.remove('yt-sub-account-btn--active');
+        if (syncBtn) syncBtn.style.display = 'none';
+        const dd = document.getElementById('yt-sub-account-dropdown');
+        if (dd) dd.style.display = 'none';
+      }
+    }
+
+    // 初始化時查詢登入狀態（service worker 可能還在 restoreSession，延遲 1.5s 再試一次）
+    chrome.runtime.sendMessage({ type: 'fb_getUser' }, res => {
+      if (res?.user) {
+        updateAccountUI(res.user);
+      } else {
+        // 第一次沒拿到，等 restoreSession 完成後重試
+        setTimeout(() => {
+          chrome.runtime.sendMessage({ type: 'fb_getUser' }, res2 => {
+            updateAccountUI(res2?.user || null);
+          });
+        }, 1500);
+      }
+    });
+
+    // 帳號按鈕：登入 or 展開 dropdown
+    document.getElementById('yt-sub-account-btn')?.addEventListener('click', e => {
+      e.stopPropagation();
+      chrome.runtime.sendMessage({ type: 'fb_getUser' }, res => {
+        const user = res?.user;
+        if (!user) {
+          // 未登入 → 觸發登入
+          const btn = document.getElementById('yt-sub-account-btn');
+          btn.disabled = true;
+          chrome.runtime.sendMessage({ type: 'fb_signIn' }, r => {
+            btn.disabled = false;
+            if (r?.ok) updateAccountUI(r.user);
+            else alert('登入失敗：' + (r?.error || '未知'));
+          });
+        } else {
+          // 已登入 → 確保 UI 同步（session 恢復比初始化慢時補救）
+          updateAccountUI(user);
+          // 開 / 關 dropdown
+          const dd = document.getElementById('yt-sub-account-dropdown');
+          if (dd) dd.style.display = dd.style.display === 'none' ? 'flex' : 'none';
+        }
+      });
+    });
+
+    // 登出
+    document.getElementById('yt-sub-signout-btn')?.addEventListener('click', () => {
+      chrome.runtime.sendMessage({ type: 'fb_signOut' }, () => {
+        updateAccountUI(null);
+      });
+    });
+
+    // ⟳ 雙向同步
+    document.getElementById('yt-sub-cloud-sync-btn')?.addEventListener('click', () => {
+      const btn = document.getElementById('yt-sub-cloud-sync-btn');
+      btn.classList.add('yt-sub-syncing');
+      btn.disabled = true;
+      setLedState('syncing');
+      chrome.storage.local.get(SAVED_WORDS_KEY, data => {
+        const localWords = data[SAVED_WORDS_KEY] || {};
+        chrome.runtime.sendMessage({ type: 'fb_biSync', localWords }, res => {
+          btn.classList.remove('yt-sub-syncing');
+          btn.disabled = false;
+          // 同步完後恢復字幕狀態
+          setLedState(primarySubtitles.length ? 'has-sub' : 'idle');
+          if (res?.ok) {
+            // 寫回合併後的本地
+            chrome.storage.local.set({ [SAVED_WORDS_KEY]: res.merged }, () => {
+              if (document.getElementById('yt-sub-panel-wordbook')?.classList.contains('active')) {
+                renderWordbook();
+              }
+            });
+          } else {
+            alert('同步失敗：' + (res?.error || '未知'));
+          }
+        });
+      });
+    });
+
+    // 點其他地方關閉 dropdown
+    document.addEventListener('click', () => {
+      const dd = document.getElementById('yt-sub-account-dropdown');
+      if (dd) dd.style.display = 'none';
+    });
+
+    // 初始化點陣 LED
+    initLed();
+  }
+
+  // ===== 5×3 點陣 LED 狀態指示器 =====
+  // 每個狀態對應一組 5 列 × 3 行的 bit 圖，以及顏色與動畫類型
+  const LED_COLS = 5;
+  const LED_ROWS = 3;
+  const LED_DOT = 4;   // 每個點的像素大小
+  const LED_GAP = 2;   // 點之間的間距
+  let _ledState = 'idle';
+  let _ledFrame = 0;
+  let _ledAlpha = 1;
+  let _ledDir = 1;  // 呼吸方向
+  let _ledTimer = null;
+
+  // 點陣圖定義（5列×3行，bit=1 代表亮）
+  const LED_PATTERNS = {
+    idle: {
+      // 三個橫排點 • • •（中間一行）
+      frames: [[
+        [0, 0, 0, 0, 0],
+        [1, 0, 1, 0, 1],
+        [0, 0, 0, 0, 0],
+      ]],
+      color: '#52525b', anim: 'static',
+    },
+    loading: {
+      // 流水燈：每 frame 依序點亮一個點
+      frames: Array.from({ length: 5 }, (_, i) => [
+        [0, 0, 0, 0, 0],
+        Array.from({ length: 5 }, (__, j) => j === i ? 1 : 0),
+        [0, 0, 0, 0, 0],
+      ]),
+      color: '#a78bfa', anim: 'loop',
+    },
+    'has-sub': {
+      // 播放三角點陣 ▶
+      frames: [[
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 0, 0],
+        [1, 0, 0, 0, 0],
+      ]],
+      color: '#4ade80', anim: 'breathe',
+    },
+    'no-sub': {
+      // 叉形 ✕
+      frames: [[
+        [1, 0, 0, 0, 1],
+        [0, 1, 0, 1, 0],
+        [1, 0, 0, 0, 1],
+      ]],
+      color: '#ef4444', anim: 'blink',
+    },
+    paused: {
+      // 雙豎線 ❚❚
+      frames: [[
+        [1, 0, 1, 0, 0],
+        [1, 0, 1, 0, 0],
+        [1, 0, 1, 0, 0],
+      ]],
+      color: '#fbbf24', anim: 'breathe',
+    },
+    syncing: {
+      // 順時針旋轉圓弧：4 個 frame 輪替 4 個角
+      frames: [
+        [[1, 1, 1, 1, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]],
+        [[0, 0, 0, 1, 1], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]],
+        [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 1, 1, 1, 1]],
+        [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [1, 1, 0, 0, 0]],
+      ],
+      color: '#a78bfa', anim: 'loop',
+    },
+    'signing-in': {
+      // G 字樣點陣
+      frames: [[
+        [0, 1, 1, 1, 0],
+        [0, 1, 0, 1, 1],
+        [0, 1, 1, 1, 0],
+      ]],
+      color: '#7c3aed', anim: 'breathe',
+    },
+  };
+
+  // 物理像素寬高（CSS px × DPR）
+  const LED_CSS_W = LED_COLS * (LED_DOT + LED_GAP); // = 30px
+  const LED_CSS_H = LED_ROWS * (LED_DOT + LED_GAP); // = 18px
+
+  function initLed() {
+    const canvas = document.getElementById('yt-sub-led');
+    if (!canvas) return;
+    // DPR 縮放：讓 Retina 螢幕也清晰
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width  = LED_CSS_W * dpr;
+    canvas.height = LED_CSS_H * dpr;
+    canvas.style.width  = LED_CSS_W + 'px';
+    canvas.style.height = LED_CSS_H + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    setLedState('idle');
+  }
+
+  /* 設定 LED 狀態（外部呼叫） */
+  function setLedState(state) {
+    if (!LED_PATTERNS[state]) return;
+    _ledState = state;
+    _ledFrame = 0;
+    _ledAlpha = 1;
+    _ledDir = 1;
+    if (_ledTimer) { clearInterval(_ledTimer); _ledTimer = null; }
+    _drawLed();
+
+    const { anim } = LED_PATTERNS[state];
+    if (anim === 'loop') {
+      _ledTimer = setInterval(() => {
+        _ledFrame = (_ledFrame + 1) % LED_PATTERNS[_ledState].frames.length;
+        _drawLed();
+      }, 160);
+    } else if (anim === 'breathe') {
+      _ledTimer = setInterval(() => {
+        _ledAlpha += _ledDir * 0.06;
+        if (_ledAlpha >= 1) { _ledAlpha = 1; _ledDir = -1; }
+        if (_ledAlpha <= 0.2) { _ledAlpha = 0.2; _ledDir = 1; }
+        _drawLed();
+      }, 50);
+    } else if (anim === 'blink') {
+      let count = 0;
+      _ledTimer = setInterval(() => {
+        _ledAlpha = _ledAlpha > 0.5 ? 0 : 1;
+        count++;
+        _drawLed();
+        if (count >= 6) { clearInterval(_ledTimer); _ledTimer = null; _ledAlpha = 1; _drawLed(); }
+      }, 200);
+    }
+  }
+
+  function _drawLed() {
+    const canvas = document.getElementById('yt-sub-led');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const { frames, color } = LED_PATTERNS[_ledState];
+    const frame = frames[_ledFrame % frames.length];
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let col = 0; col < LED_COLS; col++) {
+      for (let row = 0; row < LED_ROWS; row++) {
+        const on = frame[row][col];
+        const x = col * (LED_DOT + LED_GAP);
+        const y = row * (LED_DOT + LED_GAP);
+        ctx.beginPath();
+        ctx.arc(x + LED_DOT / 2, y + LED_DOT / 2, LED_DOT / 2, 0, Math.PI * 2);
+        ctx.fillStyle = on
+          ? hexToRgba(color, _ledAlpha)
+          : 'rgba(39,39,42,0.6)';  // 暗點（底色）
+        ctx.fill();
+      }
+    }
+  }
+
+  function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
   }
 
   function updateTransProviderUI() {
@@ -603,9 +907,26 @@
     if (!wrapper) return;
     const player = document.querySelector('#movie_player') || document.querySelector('ytd-player');
     if (!player) return;
+
+    // 第一次找到 player 時掛上 ResizeObserver
+    // window resize 只在視窗縮放時觸發，無法捕捉 player 非同步渲染完成
+    // 或劇院模式切換時的高度變化，因此需要直接觀察 player 元素本身
+    if (!_playerRO) {
+      _playerRO = new ResizeObserver(() => {
+        const w = document.getElementById('yt-sub-wrapper');
+        const p = document.querySelector('#movie_player') || document.querySelector('ytd-player');
+        if (!w || !p) return;
+        const r = p.getBoundingClientRect();
+        if (r.height < 100) return;
+        w.style.top = r.top + 'px';
+        w.style.height = r.height + 'px';
+      });
+      _playerRO.observe(player);
+    }
+
     const rect = player.getBoundingClientRect();
     if (rect.height < 100) return; // 播放器還沒渲染完，略過
-    wrapper.style.top    = rect.top + 'px';
+    wrapper.style.top = rect.top + 'px';
     wrapper.style.height = rect.height + 'px';
   }
 
@@ -679,9 +1000,9 @@
   function applyDisplaySettings() {
     const sidebar = document.getElementById('yt-sub-demo-sidebar');
     if (!sidebar) return;
-    sidebar.style.setProperty('--primary-fs',      FONT_SIZES.primary[settings.primarySize]   || '13px');
-    sidebar.style.setProperty('--secondary-fs',    FONT_SIZES.secondary[settings.secondarySize] || '12px');
-    sidebar.style.setProperty('--secondary-color', SECONDARY_COLORS[settings.secondaryColor]   || '#a855f7');
+    sidebar.style.setProperty('--primary-fs', FONT_SIZES.primary[settings.primarySize] || '13px');
+    sidebar.style.setProperty('--secondary-fs', FONT_SIZES.secondary[settings.secondarySize] || '12px');
+    sidebar.style.setProperty('--secondary-color', SECONDARY_COLORS[settings.secondaryColor] || '#a855f7');
     // overlay 副字幕顏色同步
     const overlay = document.getElementById('yt-sub-overlay');
     if (overlay) overlay.style.setProperty('--ov-secondary-color', SECONDARY_COLORS[settings.secondaryColor] || '#a855f7');
@@ -690,20 +1011,20 @@
   // ===== 語言清單 =====
   // ===== Onboarding：語言初始設定 =====
   const ONBOARDING_LEARN_LANGS = [
-    { code: 'en',      label: '英文',   native: 'English' },
-    { code: 'ja',      label: '日文',   native: '日本語'   },
-    { code: 'ko',      label: '韓文',   native: '한국어'   },
-    { code: 'zh-Hans', label: '簡體中文', native: '简体'   },
-    { code: 'zh-TW',   label: '繁體中文', native: '繁體'   },
+    { code: 'en', label: '英文', native: 'English' },
+    { code: 'ja', label: '日文', native: '日本語' },
+    { code: 'ko', label: '韓文', native: '한국어' },
+    { code: 'zh-Hans', label: '簡體中文', native: '简体' },
+    { code: 'zh-TW', label: '繁體中文', native: '繁體' },
   ];
 
   // 母語選項與學習語言共用同一清單，顯示時自動排除已選的學習語言
   const ONBOARDING_NATIVE_LANGS = [
-    { code: 'zh-TW',   label: '繁體中文', native: '繁體'   },
-    { code: 'zh-Hans', label: '簡體中文', native: '简体'   },
-    { code: 'en',      label: '英文',   native: 'English' },
-    { code: 'ja',      label: '日文',   native: '日本語'   },
-    { code: 'ko',      label: '韓文',   native: '한국어'   },
+    { code: 'zh-TW', label: '繁體中文', native: '繁體' },
+    { code: 'zh-Hans', label: '簡體中文', native: '简体' },
+    { code: 'en', label: '英文', native: 'English' },
+    { code: 'ja', label: '日文', native: '日本語' },
+    { code: 'ko', label: '韓文', native: '한국어' },
   ];
 
   function showOnboarding() {
@@ -755,17 +1076,17 @@
             <div class="yt-sub-ob-subtitle">${step === 1 ? '字幕會優先顯示這個語言，找不到時自動翻譯' : '用來顯示對照翻譯的副字幕'}</div>
             <div class="yt-sub-ob-list">
               ${step === 1
-                ? ONBOARDING_LEARN_LANGS.map(l => langBtn(l, learnLang)).join('')
-                : ONBOARDING_NATIVE_LANGS.filter(l => l.code !== learnLang).map(l => langBtn(l, nativeLang)).join('')
-              }
+          ? ONBOARDING_LEARN_LANGS.map(l => langBtn(l, learnLang)).join('')
+          : ONBOARDING_NATIVE_LANGS.filter(l => l.code !== learnLang).map(l => langBtn(l, nativeLang)).join('')
+        }
             </div>
           </div>
           <div class="yt-sub-ob-footer">
             ${step === 1
-              ? `<button class="yt-sub-ob-btn-primary" id="yt-sub-ob-next">下一步</button>`
-              : `<button class="yt-sub-ob-btn-secondary" id="yt-sub-ob-back">上一步</button>
+          ? `<button class="yt-sub-ob-btn-primary" id="yt-sub-ob-next">下一步</button>`
+          : `<button class="yt-sub-ob-btn-secondary" id="yt-sub-ob-back">上一步</button>
                  <button class="yt-sub-ob-btn-primary" id="yt-sub-ob-done">完成設定</button>`
-            }
+        }
           </div>
         </div>
       `;
@@ -794,10 +1115,10 @@
       } else {
         overlay.querySelector('#yt-sub-ob-back')?.addEventListener('click', () => { step = 1; render(); });
         overlay.querySelector('#yt-sub-ob-done')?.addEventListener('click', () => {
-          settings.primaryLang    = learnLang;
-          settings.primaryVssId   = null;
+          settings.primaryLang = learnLang;
+          settings.primaryVssId = null;
           settings.secondaryLangs = [nativeLang, '__none__', '__none__'];
-          settings.dualEnabled    = true;
+          settings.dualEnabled = true;
           settings.onboardingDone = true;
           saveSettings();
           // 移除 overlay，panel 仍完整存在
@@ -821,15 +1142,15 @@
   function renderLanguages(tracks) {
     trackList = tracks || [];
     const container = document.getElementById('yt-sub-langs');
-    const status    = document.getElementById('yt-sub-status');
+    const status = document.getElementById('yt-sub-status');
 
     // Onboarding 正在顯示時 DOM 結構不存在，略過渲染（onboarding 完成後會重新 REQUEST）
     if (!container || !status) return;
 
     // 新影片時，從已儲存設定還原語言偏好（per-video 切換不會污染全域 settings）
     const _saved = loadSettings();
-    settings.primaryLang    = _saved.primaryLang;
-    settings.primaryVssId   = _saved.primaryVssId;
+    settings.primaryLang = _saved.primaryLang;
+    settings.primaryVssId = _saved.primaryVssId;
     settings.secondaryLangs = [..._saved.secondaryLangs];
 
     if (!trackList.length) {
@@ -840,7 +1161,8 @@
       return;
     }
 
-    // 有字幕：確保 sidebar 展開
+    // 有字幕：確保 sidebar 展開，更新 LED 為 loading（字幕選擇/翻譯尚未完成）
+    setLedState('loading');
     expandSidebar();
 
     // ASR tracks 處理：只顯示使用者選定語言的那一條
@@ -878,7 +1200,7 @@
       const vssId = this.value;
       const track = displayTracks.find(t => (t.vssId || t.languageCode) === vssId);
       if (!track) return;
-      settings.primaryLang  = track.languageCode;
+      settings.primaryLang = track.languageCode;
       settings.primaryVssId = track.vssId || null;
       // 不呼叫 saveSettings()：只影響當前影片，不覆蓋全域偏好
       primarySubtitles = []; _rawPrimarySubtitles = [];
@@ -906,7 +1228,7 @@
 
   function fillAsrSelect(asrTracks) {
     const row = document.getElementById('yt-sub-asr-row');
-    const sel  = document.getElementById('yt-sub-asr-select');
+    const sel = document.getElementById('yt-sub-asr-select');
     if (!row || !sel) return;
     // 只有多條 ASR 才顯示選項（只有一條不需要選）
     if (asrTracks.length < 2) { row.style.display = 'none'; return; }
@@ -1000,18 +1322,18 @@
     const found = settings.primaryVssId
       ? Array.from(dropdown.options).find(o => o.value === settings.primaryVssId)
       : Array.from(dropdown.options).find(o => {
-          const t = trackList.find(tk => (tk.vssId || tk.languageCode) === o.value);
-          return t?.languageCode === settings.primaryLang;
-        });
+        const t = trackList.find(tk => (tk.vssId || tk.languageCode) === o.value);
+        return t?.languageCode === settings.primaryLang;
+      });
     if (found) dropdown.value = found.value;
   }
 
   // 語言代碼 fuzzy match：zh-TW 能匹配 zh-Hant、zh；ja 能匹配 ja-JP 等
   const LANG_ALIASES = {
-    'zh-TW':   ['zh-TW', 'zh-Hant', 'zh'],
+    'zh-TW': ['zh-TW', 'zh-Hant', 'zh'],
     'zh-Hans': ['zh-Hans', 'zh-CN', 'zh-SG'],
-    'pt':      ['pt', 'pt-BR', 'pt-PT'],
-    'es':      ['es', 'es-419', 'es-US', 'es-MX'],
+    'pt': ['pt', 'pt-BR', 'pt-PT'],
+    'es': ['es', 'es-419', 'es-US', 'es-MX'],
   };
 
   function findTrackByLang(tracks, lang) {
@@ -1031,7 +1353,7 @@
     if (!tracks.length) return;
     const primary = primaryOverride
       || findPrimaryTrack(tracks)
-      || tracks.find(t => !(t.vssId||'').startsWith('a.'))
+      || tracks.find(t => !(t.vssId || '').startsWith('a.'))
       || tracks[0]
       || null;
     if (primary) {
@@ -1128,7 +1450,7 @@
       .filter(e => e.segs?.length > 0)
       .map(e => ({
         startTime: (e.tStartMs || 0) / 1000,
-        duration:  (e.dDurationMs || 2000) / 1000,
+        duration: (e.dDurationMs || 2000) / 1000,
         text: e.segs.map(s => s.utf8 || '').join('').trim(),
       }))
       .filter(s => s.text.length > 0);
@@ -1150,7 +1472,7 @@
       item.dataset.index = index;
 
       const midTime = sub.startTime + 0.1;
-      const secSub  = findSubAtTime(secondarySubtitles, midTime);
+      const secSub = findSubAtTime(secondarySubtitles, midTime);
 
       const timeSpan = document.createElement('span');
       timeSpan.className = 'yt-sub-time';
@@ -1251,7 +1573,7 @@
     if (top + 420 > window.innerHeight - margin) top = rect.top - 426;
     top = Math.max(margin, top);
     popup.style.left = left + 'px';
-    popup.style.top  = top + 'px';
+    popup.style.top = top + 'px';
     popup.style.display = 'block';
     popup.innerHTML = `<div class="yt-sub-popup-loading">查詢「${word}」中...</div>`;
 
@@ -1260,6 +1582,7 @@
     setTimeout(() => window.addEventListener('click', close, true), 50);
 
     popup.dataset.word = word;
+    popup._sentenceData = (sentenceData?.context) ? sentenceData : null;
     const originalToken = sentenceData?._originalToken || word;
     lookupWord(word).then(async result => {
       if (popup.style.display === 'none' || popup.dataset.word !== word) return;
@@ -1325,8 +1648,8 @@
     const synHtml = result.synonyms.length
       ? `<div class="yt-sub-popup-section-title">近似詞</div>
          <div class="yt-sub-popup-synonyms">${result.synonyms.map(s =>
-           `<span class="yt-sub-popup-syn"><span class="yt-sub-popup-syn-en">${escapeHtml(s.en)}</span>${s.zh ? `<span class="yt-sub-popup-syn-zh">${escapeHtml(s.zh)}</span>` : (result.translating ? '<span class="yt-sub-popup-syn-zh">...</span>' : '')}</span>`
-         ).join('')}</div>`
+        `<span class="yt-sub-popup-syn"><span class="yt-sub-popup-syn-en">${escapeHtml(s.en)}</span>${s.zh ? `<span class="yt-sub-popup-syn-zh">${escapeHtml(s.zh)}</span>` : (result.translating ? '<span class="yt-sub-popup-syn-zh">...</span>' : '')}</span>`
+      ).join('')}</div>`
       : '';
     const wordZhHtml = result.wordZh
       ? `<div class="yt-sub-popup-word-zh">${escapeHtml(result.wordZh)}</div>`
@@ -1382,38 +1705,45 @@
   async function lookupWord(word) {
     if (dictCache[word] !== undefined) return dictCache[word];
     try {
-      // 字典與詞頻並行請求，互不阻塞
-      const [resp, tier] = await Promise.all([
-        fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`),
-        fetchWordTier(word),
-      ]);
+      // 字典 API 優先，tier 獨立非同步（不阻塞 popup 顯示）
+      const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
       if (!resp.ok) { dictCacheSet(word, null); return null; }
       const data = await resp.json();
       const entry = data[0];
       const firstMeaning = entry.meanings[0];
-      const firstDef     = firstMeaning?.definitions[0];
-      const synonyms     = (firstMeaning?.synonyms || []).slice(0, 4);
+      const firstDef = firstMeaning?.definitions[0];
+      const synonyms = (firstMeaning?.synonyms || []).slice(0, 4);
 
       const result = {
         word: entry.word,
         phonetic: entry.phonetic || entry.phonetics?.find(p => p.text)?.text || '',
         partOfSpeech: firstMeaning?.partOfSpeech || '',
         definition: firstDef?.definition || '',
-        wordZh:       '',   // 單字本身的通用中文翻譯（miracle → 奇蹟）
-        definitionZh: '',   // 定義的中文翻譯
+        wordZh: '',
+        definitionZh: '',
         example: firstDef?.example || '',
         synonyms: synonyms.map(s => ({ en: s, zh: '' })),
-        translating: true,  // 翻譯進行中
-        tier,               // 詞頻分級
+        translating: true,
+        tier: null,  // 非同步填入
       };
       dictCacheSet(word, result);
+
+      // tier 非同步，回來後更新 popup（若還開著）
+      fetchWordTier(word).then(tier => {
+        result.tier = tier;
+        const popup = document.getElementById('yt-sub-word-popup');
+        if (popup?.style.display !== 'none' && popup?.dataset.word === word) {
+          renderPopupContent(popup, result);
+          if (popup._sentenceData) appendSentenceSection(popup, word, popup._sentenceData);
+        }
+      });
 
       // 非同步翻譯：索引固定為 0=單字, 1=定義, 2+=近似詞
       // 不使用 filter(Boolean)，保留空字串佔位，確保索引不偏移
       const toTranslate = [word, firstDef?.definition || '', ...synonyms];
       if (word || firstDef?.definition || synonyms.length) {
         Promise.all(toTranslate.map(t => t ? translateGoogle(t, 'zh-TW').catch(() => '') : Promise.resolve(''))).then(translations => {
-          result.wordZh       = translations[0] || '';
+          result.wordZh = translations[0] || '';
           result.definitionZh = translations[1] || '';
           result.synonyms = synonyms.map((s, i) => ({ en: s, zh: translations[i + 2] || '' }));
           result.translating = false;
@@ -1421,6 +1751,18 @@
           const popup = document.getElementById('yt-sub-word-popup');
           if (popup?.style.display !== 'none' && popup?.dataset.word === word) {
             renderPopupContent(popup, result);
+            if (popup._sentenceData) appendSentenceSection(popup, word, popup._sentenceData);
+          }
+          // 若此字已存入生字本，補寫 wordZh/definitionZh/tier 到本地（不打 Firestore）
+          if (result.wordZh) {
+            chrome.storage.local.get(SAVED_WORDS_KEY, d => {
+              const saved = d[SAVED_WORDS_KEY] || {};
+              if (!saved[word]) return;
+              if (!saved[word].wordZh) saved[word].wordZh = result.wordZh;
+              if (!saved[word].definitionZh) saved[word].definitionZh = result.definitionZh;
+              if (!saved[word].tier) { saved[word].tier = result.tier; saved[word].tierFetched = true; }
+              chrome.storage.local.set({ [SAVED_WORDS_KEY]: saved }, () => { });
+            });
           }
         });
       } else {
@@ -1439,13 +1781,13 @@
 
   // 儲存單字到本地生字本；sentenceContext 為完整字幕句，startTime 為句子時間軸（秒）
   function saveWord(word, anchor, sentenceContext, startTime) {
-    const hasCachedLookup  = dictCache[word] !== undefined;
-    const cached           = hasCachedLookup ? dictCache[word] : null;
-    const cachedNotFound   = hasCachedLookup && cached === null; // 查過但字典無此字
-    const cachedTier       = cached?.tier ?? null;
-    const cachedWordZh     = cached?.wordZh || '';
-    const cachedZh         = cached?.definitionZh || '';
-    const videoId    = new URLSearchParams(location.search).get('v') || '';
+    const hasCachedLookup = dictCache[word] !== undefined;
+    const cached = hasCachedLookup ? dictCache[word] : null;
+    const cachedNotFound = hasCachedLookup && cached === null; // 查過但字典無此字
+    const cachedTier = cached?.tier ?? null;
+    const cachedWordZh = cached?.wordZh || '';
+    const cachedZh = cached?.definitionZh || '';
+    const videoId = new URLSearchParams(location.search).get('v') || '';
 
     chrome.storage.local.get(SAVED_WORDS_KEY, data => {
       const saved = data[SAVED_WORDS_KEY] || {};
@@ -1453,17 +1795,17 @@
       if (!alreadySaved) {
         saved[word] = {
           word,
-          addedAt:      Date.now(),
-          count:        1,
-          tier:         cachedTier,
-          tierFetched:  hasCachedLookup,
+          addedAt: Date.now(),
+          count: 1,
+          tier: cachedTier,
+          tierFetched: hasCachedLookup,
           noDefinition: cachedNotFound,   // true = 字典查無此字，不顯示查詢按鈕
-          wordZh:       cachedWordZh,     // 單字通用中文（危險、奇蹟...）
+          wordZh: cachedWordZh,     // 單字通用中文（危險、奇蹟...）
           definitionZh: cachedZh,
-          context:      sentenceContext || '',
-          contextZh:    '',        // 非同步翻譯後填入
+          context: sentenceContext || '',
+          contextZh: '',        // 非同步翻譯後填入
           videoId,
-          startTime:    startTime ?? 0,
+          startTime: startTime ?? 0,
         };
       } else {
         saved[word].count = (saved[word].count || 1) + 1;
@@ -1473,8 +1815,8 @@
         if (sentenceContext) {
           // 只有例句真的變了才重置 contextZh，避免連續右鍵重複打翻譯 API
           if (saved[word].context !== sentenceContext) saved[word].contextZh = '';
-          saved[word].context   = sentenceContext;
-          saved[word].videoId   = videoId;
+          saved[word].context = sentenceContext;
+          saved[word].videoId = videoId;
           saved[word].startTime = startTime ?? 0;
         }
       }
@@ -1483,13 +1825,14 @@
           console.error('[YT-SUB] storage.set 失敗:', chrome.runtime.lastError.message);
           return;
         }
+        // 同步由使用者手動觸發（設定頁同步按鈕），存字時不打 Firestore
         if (anchor) anchor.classList.add('word-saved');
         showSaveToast(word, alreadySaved);
-        // 面板開著時立即更新列表（傳入已確認的 videoId，避免 SPA 切頁後讀到錯誤 URL）
+        // 面板開著時立即更新列表
         if (document.getElementById('yt-sub-panel-wordbook')?.classList.contains('active')) {
           renderWordbook(videoId);
         }
-        // 非同步翻譯例句，完成後寫回 storage 並重新渲染
+        // 非同步翻譯例句 → 只寫回 local storage，不單獨打 Firestore
         if (sentenceContext && !saved[word].contextZh) {
           translateGoogle(sentenceContext, 'zh-TW').then(zh => {
             if (!zh) return;
@@ -1505,7 +1848,7 @@
                 });
               }
             });
-          }).catch(() => {});
+          }).catch(() => { });
         }
         // 若無快取，背景呼叫 lookupWord 補齊 tier 與中文解釋
         if (!hasCachedLookup) {
@@ -1517,7 +1860,7 @@
                 const s2 = d2[SAVED_WORDS_KEY] || {};
                 if (s2[word] && !s2[word].noDefinition) {
                   s2[word].noDefinition = true;
-                  s2[word].tierFetched  = true;
+                  s2[word].tierFetched = true;
                   chrome.storage.local.set({ [SAVED_WORDS_KEY]: s2 }, () => {
                     if (document.getElementById('yt-sub-panel-wordbook')?.classList.contains('active')) {
                       renderWordbook();
@@ -1535,11 +1878,12 @@
                 if (chrome.runtime.lastError) return;
                 const s2 = d2[SAVED_WORDS_KEY] || {};
                 if (!s2[word]) return;
-                s2[word].tier         = result.tier || null;
-                s2[word].tierFetched  = true;
-                if (!s2[word].wordZh)       s2[word].wordZh       = result.wordZh       || '';
+                s2[word].tier = result.tier || null;
+                s2[word].tierFetched = true;
+                if (!s2[word].wordZh) s2[word].wordZh = result.wordZh || '';
                 if (!s2[word].definitionZh) s2[word].definitionZh = result.definitionZh || '';
                 chrome.storage.local.set({ [SAVED_WORDS_KEY]: s2 }, () => {
+                  // Firestore 同步由 lookupWord 翻譯 callback 負責，這裡只更新本地
                   if (document.getElementById('yt-sub-panel-wordbook')?.classList.contains('active')) {
                     renderWordbook();
                   }
@@ -1573,10 +1917,10 @@
   function renderWordbook(forceVideoId) {
     chrome.storage.local.get(SAVED_WORDS_KEY, data => {
       const saved = data[SAVED_WORDS_KEY] || {};
-      const words = Object.values(saved);
+      const words = Object.values(saved).filter(w => !w.deletedAt); // 排除軟刪除
       const countEl = document.getElementById('yt-sub-wordbook-count');
-      const listEl  = document.getElementById('yt-sub-wordbook-list');
-      const sortEl  = document.getElementById('yt-sub-wordbook-sort');
+      const listEl = document.getElementById('yt-sub-wordbook-list');
+      const sortEl = document.getElementById('yt-sub-wordbook-sort');
       if (!listEl || !countEl) return;
 
       // 過濾 + 排序
@@ -1661,7 +2005,7 @@
   function deleteWord(word, rowEl) {
     chrome.storage.local.get(SAVED_WORDS_KEY, data => {
       const saved = data[SAVED_WORDS_KEY] || {};
-      delete saved[word];
+      if (saved[word]) saved[word].deletedAt = Date.now(); // 軟刪除，保留供同步
       chrome.storage.local.set({ [SAVED_WORDS_KEY]: saved }, () => {
         rowEl.classList.add('yt-sub-wb-row-removing');
         setTimeout(() => renderWordbook(), 250);
@@ -1700,15 +2044,15 @@
 
     // 定位：以 sidebar 為基準居中
     const sidebar = document.getElementById('yt-sub-demo-sidebar');
-    const sbRect  = sidebar?.getBoundingClientRect();
-    const popupW  = 280;
-    const left       = sbRect ? sbRect.left + (sbRect.width - popupW) / 2 : window.innerWidth - popupW - 16;
+    const sbRect = sidebar?.getBoundingClientRect();
+    const popupW = 280;
+    const left = sbRect ? sbRect.left + (sbRect.width - popupW) / 2 : window.innerWidth - popupW - 16;
     const anchorRect = anchor.getBoundingClientRect();
-    const topBelow   = anchorRect.bottom + 6;
-    const popupH     = 120; // 預估高度，避免超出視窗底部
-    const top        = topBelow + popupH > window.innerHeight ? anchorRect.top - popupH - 6 : topBelow;
+    const topBelow = anchorRect.bottom + 6;
+    const popupH = 120; // 預估高度，避免超出視窗底部
+    const top = topBelow + popupH > window.innerHeight ? anchorRect.top - popupH - 6 : topBelow;
     popup.style.left = Math.max(8, Math.min(left, window.innerWidth - popupW - 8)) + 'px';
-    popup.style.top  = Math.max(8, top) + 'px';
+    popup.style.top = Math.max(8, top) + 'px';
 
     // 跳轉按鈕邏輯
     popup.querySelector('.yt-sub-sent-seek').addEventListener('click', e => {
@@ -1918,7 +2262,7 @@
         span.addEventListener('contextmenu', e => {
           e.preventDefault();
           e.stopImmediatePropagation();
-          const clean    = lemmatize(token.toLowerCase().replace(/'s$/i, '').replace(/['-]$/, ''));
+          const clean = lemmatize(token.toLowerCase().replace(/'s$/i, '').replace(/['-]$/, ''));
           const original = token.toLowerCase();
           // dictCache[clean] === null 表示字典明確查無此詞（還原錯誤）→ 改存原始詞
           const wordToSave = (clean !== original && dictCache[clean] === null) ? original : clean;
@@ -1943,7 +2287,7 @@
   async function translateOne(text, targetLang) {
     switch (settings.translationProvider) {
       case 'google': return translateGoogle(text, targetLang);
-      default:       return text;
+      default: return text;
     }
   }
 
@@ -2171,14 +2515,16 @@
 
   function expandSidebar() {
     const sidebar = document.getElementById('yt-sub-demo-sidebar');
-    const ball    = document.getElementById('yt-sub-ball');
+    const ball = document.getElementById('yt-sub-ball');
     if (!sidebar || !ball) return;
     _ballAnimating = true;
     sidebar.classList.remove('sidebar-collapsed');
     ball.classList.add('expanded');
-    syncWrapperToPlayer(); // 確保高度對齊播放器（影片可能在 SPA 後才渲染完）
-    applyLayoutMode('push'); // 展開 → 縮排 YouTube 版面
-    // 隱藏 secondary（推薦/合輯欄），避免在 1280/1440px 下被 sidebar 遮住
+    // 展開時隱藏 ball dot（狀態已由 header LED 點陣呈現，不需重複顯示）
+    const dot = document.getElementById('yt-sub-ball-dot');
+    if (dot) { dot.classList.remove('no-sub', 'has-sub', 'idle'); dot.classList.add('hidden'); }
+    syncWrapperToPlayer();
+    applyLayoutMode('push');
     const sec = document.querySelector('#secondary');
     if (sec) sec.style.setProperty('display', 'none', 'important');
     const onEnd = () => { _ballAnimating = false; ball.removeEventListener('transitionend', onEnd); };
@@ -2187,7 +2533,7 @@
 
   function collapseSidebar(reason) {
     const sidebar = document.getElementById('yt-sub-demo-sidebar');
-    const ball    = document.getElementById('yt-sub-ball');
+    const ball = document.getElementById('yt-sub-ball');
     if (!sidebar || !ball) return;
     _ballAnimating = true;
     sidebar.classList.add('sidebar-collapsed');
@@ -2201,7 +2547,7 @@
     updateBallDot(reason);
   }
 
-  // 更新狀態點（no-sub / has-sub / hidden）
+  // 更新狀態點（no-sub / has-sub / hidden）+ 同步 LED 點陣
   function updateBallDot(reason) {
     const dot = document.getElementById('yt-sub-ball-dot');
     if (!dot) return;
@@ -2212,10 +2558,13 @@
     dot.style.animation = '';
     if (reason === 'no-sub') {
       dot.classList.add('no-sub');
+      setLedState('no-sub');
     } else if (reason === 'idle') {
       dot.classList.add('idle');
+      setLedState('idle');
     } else {
       dot.classList.add('has-sub');
+      setLedState('has-sub');
     }
   }
 
@@ -2225,7 +2574,7 @@
 
   function updateOverlay(primText, secText, primIdx = -1) {
     const ovPrim = document.getElementById('yt-sub-ov-primary');
-    const ovSec  = document.getElementById('yt-sub-ov-secondary');
+    const ovSec = document.getElementById('yt-sub-ov-secondary');
     if (ovPrim) {
       // 只有文字改變時才重建 tokenize，避免 hover 閃爍
       if (ovPrim.dataset.text !== primText) {
@@ -2243,10 +2592,19 @@
   function startSync() {
     if (syncInterval) clearInterval(syncInterval);
 
+    // 字幕同步啟動 → LED 確認進入 has-sub（video 可能已在播放中）
+    const videoCheck = document.querySelector('video');
+    if (videoCheck && videoCheck.paused) setLedState('paused');
+    else setLedState('has-sub');
+
     // 偵測跳轉：若外部翻譯進行中，跳到未翻譯區域時重新翻譯
     const video = document.querySelector('video');
     if (video && _seekHandler) video.removeEventListener('seeked', _seekHandler);
     if (video) {
+      // 暫停/播放 → 更新 LED 狀態
+      video.addEventListener('pause', () => { if (primarySubtitles.length) setLedState('paused'); });
+      video.addEventListener('playing', () => { if (primarySubtitles.length) setLedState('has-sub'); });
+
       _seekHandler = () => {
         if (settings.translationProvider === 'ytlang') return;
         const t = video.currentTime;
@@ -2269,17 +2627,17 @@
 
       const t = video.currentTime;
       const tSub = t + (settings.subtitleOffset || 0); // 套用使用者設定的時間偏移
-      const primIdx  = findActiveIndex(primarySubtitles, tSub);
-      const primSub  = primIdx >= 0 ? primarySubtitles[primIdx] : null;
+      const primIdx = findActiveIndex(primarySubtitles, tSub);
+      const primSub = primIdx >= 0 ? primarySubtitles[primIdx] : null;
       // 用 startTime + 0.1 而非 midpoint，避免 extendSubtitles 拉長 duration 後
       // midpoint 跑到 secondary subtitle 的時間範圍之外
-      const secSub   = primSub
+      const secSub = primSub
         ? findSubAtTime(secondarySubtitles, primSub.startTime + 0.1)
         : null;
 
       const curPrimEl = document.getElementById('yt-sub-cur-primary');
-      const curSecEl  = document.getElementById('yt-sub-cur-secondary');
-      const curWrap   = document.getElementById('yt-sub-current');
+      const curSecEl = document.getElementById('yt-sub-cur-secondary');
+      const curWrap = document.getElementById('yt-sub-current');
 
       if (curPrimEl) {
         const newText = primSub ? primSub.text : '';
@@ -2289,8 +2647,8 @@
           if (newText) buildTokenizedText(curPrimEl, newText, primSub?.startTime ?? 0);
         }
       }
-      if (curSecEl)  curSecEl.textContent  = secSub && settings.dualEnabled ? secSub.text : '';
-      if (curWrap)   curWrap.classList.toggle('active', primSub !== null || (secSub !== null && settings.dualEnabled));
+      if (curSecEl) curSecEl.textContent = secSub && settings.dualEnabled ? secSub.text : '';
+      if (curWrap) curWrap.classList.toggle('active', primSub !== null || (secSub !== null && settings.dualEnabled));
       updateCurrentLoopStyle();
 
       // 單句循環：不依賴 primSub，句子間空隙也能正確 loop 回去
@@ -2352,7 +2710,7 @@
 
   // ===== 工具 =====
 
-  function isVowel(c)     { return 'aeiou'.includes(c); }
+  function isVowel(c) { return 'aeiou'.includes(c); }
   function isConsonant(c) { return /^[a-z]$/.test(c) && !isVowel(c); }
 
   // 英文詞形還原：將屈折形（shining/walked/runs）還原為原型（shine/walk/run）
@@ -2480,7 +2838,9 @@
       if (translationJob) { translationJob.cancelled = true; translationJob = null; }
       if (primaryTranslationJob) { primaryTranslationJob.cancelled = true; primaryTranslationJob = null; }
       if (_nextBatchTimer) { clearTimeout(_nextBatchTimer); _nextBatchTimer = null; }
-      primarySubtitles     = [];
+      // SPA 換頁時重置 ResizeObserver，下一頁的 player 元素是新的
+      if (_playerRO) { _playerRO.disconnect(); _playerRO = null; }
+      primarySubtitles = [];
       _rawPrimarySubtitles = [];
       secondarySubtitles = [];
       trackList = [];
@@ -2494,10 +2854,10 @@
       if (statusEl) statusEl.textContent = '切換影片，重新載入...';
       const list = document.getElementById('yt-sub-list');
       const primCur = document.getElementById('yt-sub-cur-primary');
-      const secCur  = document.getElementById('yt-sub-cur-secondary');
-      if (list)    list.innerHTML    = '';
+      const secCur = document.getElementById('yt-sub-cur-secondary');
+      if (list) list.innerHTML = '';
       if (primCur) primCur.textContent = '';
-      if (secCur)  secCur.textContent  = '';
+      if (secCur) secCur.textContent = '';
       updateOverlay('', '');
       // 生字本面板開著時，重新渲染以更新「當前影片」篩選
       if (document.getElementById('yt-sub-panel-wordbook')?.classList.contains('active')) {
@@ -2521,13 +2881,13 @@
     settings.extensionEnabled = !settings.extensionEnabled;
     saveSettings();
 
-    const body    = document.getElementById('yt-sub-body');
-    const tabBar  = document.getElementById('yt-sub-tab-bar');
+    const body = document.getElementById('yt-sub-body');
+    const tabBar = document.getElementById('yt-sub-tab-bar');
 
     if (settings.extensionEnabled) {
       // 開啟：展開 sidebar，恢復 body/tab-bar，重新觸發字幕載入
       expandSidebar();
-      if (body)   body.style.display = '';
+      if (body) body.style.display = '';
       if (tabBar) tabBar.style.display = '';
       window.postMessage({ type: 'YT_SUBTITLE_DEMO_REQUEST' }, '*');
     } else {
@@ -2538,7 +2898,7 @@
       if (translationJob) { translationJob.cancelled = true; translationJob = null; }
       if (primaryTranslationJob) { primaryTranslationJob.cancelled = true; primaryTranslationJob = null; }
       collapseSidebar('user');
-      if (body)   body.style.display = 'none';
+      if (body) body.style.display = 'none';
       if (tabBar) tabBar.style.display = 'none';
       removeOverlay();
     }

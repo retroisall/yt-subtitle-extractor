@@ -18,6 +18,44 @@ YT Subtitle Demo - YouTube 字幕提取器
 - 切換影片時會自動重新載入字幕清單
 
 
+v4.3 更新紀錄（2026-04-15）
+============================
+
+【新功能】
+
+■ Google 帳號登入 + Firebase 雲端同步
+  - 點擊 header 右側帳號按鈕觸發 Google OAuth（launchWebAuthFlow）
+  - 登入後帳號按鈕變紫色 G，顯示雲端同步按鈕（⟳）
+  - 點 ⟳ 執行雙向同步：以 addedAt/deletedAt 時間戳決定勝出方
+  - 刪除單字改為軟刪除（加 deletedAt 欄位），雲端同步後對方裝置也會刪除
+  - 登入狀態跨頁保留（restoreSession 從 chrome.storage.local 恢復 refresh token）
+
+■ Header UI 全面重設計
+  - 標題改為「學習Bar」膠囊 Tag 風格（Style B：紫底白字 + 灰底深字）
+  - 移除舊左側圖示，改為 CSS 文字 LOGO
+  - 右側按鈕間距拉開，區域往左調整避開懸浮球
+
+■ 5×3 點陣 LED 狀態指示器
+  - Header 右側新增 Canvas 點陣動畫，對應各播放狀態：
+    idle（靜止灰點）、loading（流水燈紫色）、has-sub（播放三角綠色呼吸）
+    no-sub（叉形紅色閃爍）、paused（雙豎線黃色呼吸）、syncing（旋轉紫色）、signing-in（G 字淡入淡出）
+  - 展開 sidebar 時自動隱藏 ball dot（避免重複呈現）
+
+■ 彈窗載入速度優化
+  - 字典查詢不再等 Datamuse 詞頻 API，立即顯示定義
+  - 詞頻等級異步補填，不阻擋 popup 顯示
+
+【修正】
+
+- 帳號 dropdown 與右側懸浮球重疊（right 從 10px 改為 52px）
+- 首次載入 LED 狀態錯誤（expandSidebar 未設 LED 狀態，現在先 loading 再 has-sub）
+- 初始化時 service worker 尚未恢復 session 導致帳號按鈕顯示為未登入（加 1.5s 延遲重試）
+- 帳號按鈕點擊時 email 欄空白（click handler 補呼叫 updateAccountUI）
+- 翻譯/詞頻更新後句子區塊消失（改用 popup._sentenceData 重新 append）
+- 同步完成後 LED 未恢復字幕狀態（現在 syncing 結束後回到 has-sub/idle）
+
+---
+
 v4.2 更新紀錄（2026-04-14）
 ============================
 
