@@ -2,7 +2,7 @@
 // 處理 Firebase 認證 + Firestore 單字同步
 
 import {
-  signInWithGoogle, signOut, restoreSession, getCurrentUser,
+  signInWithGoogle, signOut, restoreSession, getCurrentUser, getIdToken,
   setDoc, getCollection, getCollectionPublic, deleteDoc,
 } from './firebase.js';
 
@@ -180,6 +180,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const url = chrome.runtime.getURL(`editor.html?tabId=${tabId}`);
       chrome.tabs.create({ url });
       sendResponse({ ok: true });
+      return false;
+    }
+
+    // 開啟單字庫儀表板
+    case 'dashboard_open': {
+      chrome.tabs.create({ url: chrome.runtime.getURL('vocab-dashboard.html') });
+      sendResponse({ ok: true });
+      return false;
+    }
+
+    // 取得目前 ID Token（Dashboard 讀 Firestore 用）
+    case 'fb_getIdToken': {
+      sendResponse({ ok: true, token: getIdToken() });
       return false;
     }
 

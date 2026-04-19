@@ -18,6 +18,50 @@ YT Subtitle Demo - YouTube 字幕提取器
 - 切換影片時會自動重新載入字幕清單
 
 
+v4.6 更新紀錄（2026-04-19）
+============================
+
+【新功能】
+
+■ 後台管理儀表板（vocab-dashboard.html）
+  - 新分頁開啟完整後台，含 8 個分頁：概覽、LINE 紀錄、單字庫、關鍵字、排程、記憶、遊戲、設定
+  - 概覽：統計卡片（總單字數、關鍵字數、記憶條數、遊戲場次）、最近單字與 LINE 訊息速覽
+  - LINE 紀錄：顯示所有群組訊息紀錄（透過 Firebase Firestore 即時讀取）
+  - 單字庫：列出雲端單字，支援 CEFR 等級標示、排序、搜尋、刪除、推播至 LINE
+  - 關鍵字：新增 / 刪除關鍵字，雙寫至 Firebase 與 Google Sheets（via GAS API）
+  - 記憶：新增 / 刪除觸發詞-回覆組合，雙寫至 Firebase 與 Google Sheets
+  - 遊戲：分數排行榜與題庫管理（子頁籤）
+  - 設定：GAS Webhook URL、LINE User ID、Firebase Security Rules 快速複製
+
+■ Firebase 整合
+  - 後台直接透過 Firestore REST API 讀取 Firebase 資料（不需 SDK）
+  - 認證流程：background.js 管理 ID Token，儀表板透過 `fb_getIdToken` 訊息取得 token
+  - 支援 LINE Flex Message 推播：從單字庫選字後一鍵推送至 LINE
+
+■ 雙寫同步架構
+  - 儀表板的關鍵字、記憶 CRUD 操作同時寫入 Firebase 與 Google Sheets
+  - GAS API（`add_keyword`、`add_memory`、`delete_by_key`）負責 Sheets 端同步
+  - LINE bot 仍讀取 Google Sheets，確保功能不中斷
+
+【修正】
+
+- firebase.js 補出 `getIdToken()` export，供 background.js 轉發給儀表板
+- background.js 新增 `fb_getIdToken` 與 `dashboard_open` 訊息處理
+- manifest.json 補加 `vocab-dashboard.html/js/css` 至 `web_accessible_resources`
+
+---
+
+v4.5 更新紀錄（2026-04-15）
+============================
+
+【修正】
+
+- 主字幕語言偏好在影片無對應字幕時，不再強制走 tlang 翻譯或 Google Translate
+- 改為：若該影片有同語系 ASR（自動產生）字幕，以 ASR 作為主字幕直接載入
+- 若無同語系字幕（連 ASR 也沒有），顯示「此影片無 [lang] 字幕」並停止，不翻譯
+
+---
+
 v4.4 更新紀錄（2026-04-15）
 ============================
 

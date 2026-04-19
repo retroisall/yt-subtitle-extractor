@@ -38,7 +38,7 @@
       "matches": ["*://www.youtube.com/*"]
     },
     {
-      "resources": ["editor.html", "editor.js", "editor.css"],
+      "resources": ["editor.html", "editor.js", "editor.css", "vocab-dashboard.html", "vocab-dashboard.js", "vocab-dashboard.css"],
       "matches": ["<all_urls>"]
     }
   ]

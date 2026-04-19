@@ -141,6 +141,11 @@ export function getCurrentUser() {
   return _userInfo;
 }
 
+// ===== 取得目前 ID Token（供 Dashboard 使用）=====
+export function getIdToken() {
+  return _idToken;
+}
+
 // ===== Firestore helpers =====
 const FIRESTORE_BASE =
   `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
