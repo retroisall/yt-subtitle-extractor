@@ -368,3 +368,37 @@ v2.0 更新紀錄（2026-04-10）
 - 兩個 MutationObserver 合併為一，減少 DOM 監聽開銷
 - 100ms sync loop 中 querySelectorAll 改為 children 存取，減少開銷
 - loop style 更新加 guard，避免每 tick 觸發無謂的 classList 操作
+
+
+---
+
+v2.1 更新紀錄（2026-04-20）
+============================
+
+【新功能】
+
+■ 字幕編輯器改版
+  - 自動暫停 + 時間平移移至右側面板頂部（移除左下角循環播放 checkbox）
+  - 離開某列後自動依 startTime 排序所有字幕
+  - 秒數欄位驗證：startTime 不可超出前一句 endTime、endTime 不可超出後一句 startTime
+  - ⌚ 抓取按鈕改為：startTime 抓前一句的 endTime，endTime 抓下一句的 startTime
+  - 句子間新增 ＋ 合併按鈕：點擊後兩句合為一句（文字換行合併、時間區間取聯集）
+  - textarea 高度依內容自動增高（不固定單行）
+
+■ 自定義字幕持久化（本地 + 社群）
+  - 儲存本地格式改為 `{ primarySubtitles, secondarySubtitles }`，與社群上傳格式一致
+  - SRT 匯入後自動儲存至 chrome.storage.local（含副字幕）
+  - 重整頁面後自動還原自定義字幕或社群字幕（修正過去需重新匯入的問題）
+  - 讀取時兼容舊格式（純陣列）
+
+■ 社群字幕功能修正
+  - 社群字幕上傳現正確包含副字幕（過去 hardcode 空陣列）
+  - 社群字幕選項不再恆為 disabled
+  - 載入無副字幕的社群字幕時自動觸發翻譯（若雙語模式開啟）
+
+【修正】
+
+- 離開編輯模式後字幕 sync 停止（timeupdate 事件監聽器未清除）
+- _loopActive 未重置導致播放器持續被暫停
+- fetchCommunitySubtitles() 因 customSubtitleActive flag 而被略過
+- _restoreSavedSubtitle 僅在有 YT 字幕時才呼叫（無字幕影片無法還原）

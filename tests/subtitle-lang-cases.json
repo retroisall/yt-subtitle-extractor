@@ -1,0 +1,77 @@
+[
+  {
+    "videoId": "jNQXAC9IVRw",
+    "title": "Me at the zoo (YouTube 第一支影片)",
+    "tracks": ["en", "de"],
+    "hasManual": true,
+    "scenario": "偏好英文，影片有英文手動字幕，應直接載入",
+    "primaryLang": "en",
+    "expectPrimaryLoaded": true,
+    "expectNoSubtitleMsg": false,
+    "expectNoForceTranslate": true,
+    "notes": "YouTube 史上第一支影片，有英文和德文手動字幕。執行確認：tracks=2，狀態「載入主字幕（英文）...」，下拉 value=.en"
+  },
+  {
+    "videoId": "dQw4w9WgXcQ",
+    "title": "Rick Astley - Never Gonna Give You Up",
+    "tracks": ["en", "ja", "zh-TW", "fr", "de", "es"],
+    "hasManual": false,
+    "hasAsr": true,
+    "scenario": "偏好英文，影片有英文 ASR（及多語言），應直接載入不翻譯",
+    "primaryLang": "en",
+    "expectPrimaryLoaded": true,
+    "expectNoSubtitleMsg": false,
+    "expectNoForceTranslate": true,
+    "notes": "知名 MV，有 6 個字幕軌。執行確認：狀態「載入主字幕（英文）...」，下拉 value=.en，options=6，無翻譯 loading"
+  },
+  {
+    "videoId": "9bZkp7q19f0",
+    "title": "PSY - GANGNAM STYLE（韓語 ASR，偏好日文）",
+    "tracks": ["ko"],
+    "hasManual": false,
+    "hasAsr": true,
+    "scenario": "偏好日文，影片只有韓語 ASR，語系完全不符，應顯示「此影片無 ja 字幕」，停止不翻譯",
+    "primaryLang": "ja",
+    "expectPrimaryLoaded": false,
+    "expectNoSubtitleMsg": true,
+    "expectNoForceTranslate": true,
+    "notes": "執行確認：tracks=1（韓文 ASR），狀態「此影片無 ja 字幕」，下拉選中「韓文 (自動)」，無翻譯 loading — 完全符合新規則"
+  },
+  {
+    "videoId": "kJQP7kiw5Fk",
+    "title": "Luis Fonsi - Despacito ft. Daddy Yankee（多語言含英文）",
+    "tracks": ["es", "en", "ja", "pt", "zh-TW", "fr"],
+    "hasManual": true,
+    "scenario": "偏好英文，影片有多語言字幕（含英文），應直接載入英文字幕，不翻譯",
+    "primaryLang": "en",
+    "expectPrimaryLoaded": true,
+    "expectNoSubtitleMsg": false,
+    "expectNoForceTranslate": true,
+    "notes": "執行確認：tracks=6，狀態「載入主字幕（英文 - en）...」，下拉 value=.en.nP7-2PuUl7o，options=6，無翻譯 loading"
+  },
+  {
+    "videoId": "YykjpeuMNEk",
+    "title": "YykjpeuMNEk（只有英文，偏好日文）",
+    "tracks": ["en"],
+    "hasManual": true,
+    "scenario": "偏好日文，但影片實際只有英文字幕（tracks=2），應顯示「此影片無 ja 字幕」，停止不翻譯",
+    "primaryLang": "ja",
+    "expectPrimaryLoaded": false,
+    "expectNoSubtitleMsg": true,
+    "expectNoForceTranslate": true,
+    "notes": "執行確認：tracks=2（均英文），狀態「此影片無 ja 字幕」，下拉顯示英文 options，無翻譯 loading — 符合新規則"
+  },
+  {
+    "videoId": "OBne7PNiLtQ",
+    "title": "Kanye West - Stronger（版權限制，無法播放）",
+    "tracks": [],
+    "hasManual": false,
+    "scenario": "影片因版權限制無法播放（playability=ERROR），套件應顯示「此影片沒有可用字幕」",
+    "primaryLang": "en",
+    "expectPrimaryLoaded": false,
+    "expectNoSubtitleMsg": false,
+    "expectNoAvailableMsg": true,
+    "expectNoForceTranslate": true,
+    "notes": "執行確認：Innertube API 回 playability=ERROR，套件顯示「此影片沒有可用字幕」，正確處理錯誤情境"
+  }
+]

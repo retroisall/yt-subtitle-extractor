@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 單字庫：使用者只能讀寫自己的
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // 社群字幕（實際路徑）：所有人可讀，登入用戶可上傳，管理員可刪除
+    match /customSubtitles/{videoId}/entries/{entryId} {
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.resource.data.uploaderUid == request.auth.uid;
+      allow delete: if request.auth != null
+                    && (resource.data.uploaderUid == request.auth.uid
+                        || request.auth.token.email == 'kuoway79@gmail.com');
+    }
+
+    // 編輯器權限：
+    //   - 使用者可讀自己的 doc（查詢自己是否有權限）
+    //   - 使用者可建立自己的 doc（登入後自動申請）
+    //   - 只有管理員可以修改 enabled 欄位（核准/撤銷）
+    match /editor_permissions/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.enabled == false;
+      allow update: if request.auth != null
+                    && request.auth.token.email == 'kuoway79@gmail.com';
+      allow read: if request.auth != null
+                  && request.auth.token.email == 'kuoway79@gmail.com';
+    }
+
+    // 關鍵字、記憶（GAS 同步）：登入可讀寫
+    match /keywords/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /memories/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

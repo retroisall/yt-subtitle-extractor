@@ -291,6 +291,7 @@ scheduleNextTranslationBatch()
 | **`power-btn` 移除後 initSidebar crash** | v4.1 從 HTML template 移除 `⏻` 按鈕，但 initSidebar 仍有 `getElementById('yt-sub-power-btn').classList.toggle(...)` → null crash，整個 initSidebar 失敗，字幕永遠不載 | 刪除三行舊引用；同步清除 `toggleExtension` 內的 dead code |
 | **sidebar 高度超出影片底部（push 順序錯誤）** | `applyLayoutMode('push')` 先呼叫 `syncWrapperToPlayer` 再設 `margin-right`，wrapper 記錄的是 push 前的影片高度；push 後影片縮小，wrapper 仍保留較大的高度，sidebar 下緣超出影片底部壓到標題 | 改為先設 `margin-right`，再呼叫 `syncWrapperToPlayer`；此時讀到的是 push 後影片的實際高度，wrapper bottom = player bottom |
 | **1280/1440px `#secondary` 被 sidebar 部分遮蓋** | YouTube secondary 欄最小寬度約 348px，primary + secondary 合計 988–1201px，超過 `viewport - 360px`；`margin-right` 和 `padding-right` 都無法讓 secondary 縮到 sidebar 左邊 | sidebar 展開時直接 `#secondary { display: none !important }`，收合時 `removeProperty('display')`；1920px 以上影片內容不被遮，不需要隱藏 |
+| **`>/<` 按鈕連按卡在同一句** | `_currentPrimIdx` 由 sync loop 每 100ms 用 `findActiveIndex`（duration-based）更新；seek 後若 duration 重疊或字幕極短，`findActiveIndex` 始終回傳舊 index，蓋掉剛設定的 nextIdx，下次點擊 base 永遠不動 | 拆分兩個函數：`findActiveIndex`（顯示用，需 duration，gap 回傳 -1）與 `findLastStartedIndex`（導航用，只比 startTime，永遠有值）；`>/<` 按鈕改為在點擊當下直接讀 `video.currentTime` 即時算 `findLastStartedIndex`，完全不依賴 sync loop 快取的 `_currentPrimIdx` |
 | **合輯模式生字本「當前影片」為空** | `saveWord` 的 `videoId` 同步取自 `location.search`，但 `chrome.storage.local.get` callback 是 async；SPA 自動播放下一部時 URL 已切換，callback 執行時 `renderWordbook()` 用新 URL 過濾，找不到剛存的字 | `saveWord` 把已確認的 `videoId` 傳給 `renderWordbook(forceVideoId)`，強制使用存字當下的 videoId 過濾 |
 | **OAuth nonce 參數不相容** | `launchWebAuthFlow` 使用 `response_type=token`（implicit flow），不支援 nonce 參數（nonce 只用於 id_token flow）；加了 nonce 後 Google 回傳「Parameter not allowed for this message type: nonce」 | 移除 OAuth URL 中的 nonce 參數 |
 | **Chrome App OAuth vs Web Application** | 建立 OAuth client 時若選「Chrome App」類型，Google 要求上架 Chrome Web Store 才允許使用；開發中套件無法登入 | 改用「Web Application」類型，將 `https://<extensionId>.chromiumapp.org/` 加入授權重新導向 URI |
@@ -399,3 +400,56 @@ node test.mjs
 - 測試 2：字幕語言清單（mock timedtext 回應）
 - 測試 3：字幕內容載入與渲染
 - 測試 4：SPA 導航後字幕更新
+
+---
+
+## 字幕功能反覆踩坑根因分析（2026-04-20）
+
+### 為什麼字幕功能需要來回修多次？
+
+#### 1. 全域 flag 競爭（`customSubtitleActive`）
+
+`customSubtitleActive` 是單一布林值，控制「是否有自定義字幕啟用中」。
+問題在於：
+- `_restoreSavedSubtitle` 非同步，在 callback 裡設定 flag
+- `fetchCommunitySubtitles`、`renderLanguages` 同步讀取 flag
+- 結果：callback 尚未執行，flag 仍是 false，後續邏輯被跳過
+
+**根因**：非同步 storage 讀取與同步 UI 流程的執行順序沒有明確協調機制。
+
+#### 2. `timeupdate` 事件監聽器洩漏
+
+`enterEditMode` 每次呼叫都 `addEventListener`，但 `exitEditMode` 沒有對應的 `removeEventListener`。
+因為 listener 是匿名 function，無法正確移除，造成：
+- 多個 listener 同時存在
+- `_loopActive = true` 的舊 listener 持續呼叫 `vid.pause()`
+- 外觀正常但播放被鎖死
+
+**根因**：listener 用匿名函式，無法被 remove。修法：存成 module-level 具名變數。
+
+#### 3. 儲存格式不一致
+
+- 本地存：只存 `primarySubtitles`（陣列）
+- 社群存：存 `{ primarySubtitles, secondarySubtitles }` 物件
+- 社群上傳：`secondarySubtitles` hardcode 為 `[]`
+
+造成副字幕完全無法在任何跨 session 情境下保留。
+**根因**：儲存和上傳邏輯分屬不同 PR/修改時期，沒有統一規格。
+
+#### 4. `_restoreSavedSubtitle` 呼叫點不完整
+
+原本只在 `YT_SUBTITLE_DEMO_SUBTITLE_DATA` message handler 中呼叫（YouTube 字幕資料回傳後）。
+若影片完全沒有 YouTube 字幕，該 message 永遠不會觸發，還原邏輯就完全不執行。
+
+**根因**：設計時假設「所有影片都有 YT 字幕」，沒有考慮無字幕影片路徑。
+
+---
+
+### 防範措施
+
+| 問題類型 | 防範方式 |
+|---------|---------|
+| 非同步競爭 | 在 callback 入口再次 guard check flag，不依賴外層時序 |
+| listener 洩漏 | 所有 addEventListener 的 handler 必須存為具名變數，exitMode 時明確 remove |
+| 儲存格式 | 統一以物件 `{ primarySubtitles, secondarySubtitles }` 存取，讀取兼容舊格式 |
+| 呼叫路徑缺口 | 功能函式呼叫點要覆蓋所有可能的 entry（有字幕/無字幕/reload 等路徑） |

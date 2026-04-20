@@ -3,7 +3,7 @@
 
 import {
   signInWithGoogle, signOut, restoreSession, getCurrentUser, getIdToken,
-  setDoc, getCollection, getCollectionPublic, deleteDoc,
+  setDoc, getDoc, updateDoc, getCollection, getCollectionPublic, deleteDoc,
 } from './firebase.js';
 
 // 啟動時嘗試恢復登入狀態
@@ -242,6 +242,62 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       })
         .then(entries => sendResponse({ ok: true, entries }))
         .catch(e      => sendResponse({ ok: false, error: e.message, entries: [] }));
+      return true;
+    }
+
+    // 登入後自動建立編輯器權限申請 doc（若已存在則不覆寫）
+    case 'fb_registerEditorPermission': {
+      const user = getCurrentUser();
+      if (!user) { sendResponse({ ok: false, error: '未登入' }); return false; }
+      const docPath = `editor_permissions/${user.uid}`;
+      getDoc(docPath)
+        .then(existing => {
+          if (existing) { sendResponse({ ok: true, existed: true, data: existing }); return; }
+          return setDoc(docPath, {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || '',
+            enabled: false,
+            requestedAt: new Date().toISOString(),
+          }).then(() => sendResponse({ ok: true, existed: false }));
+        })
+        .catch(e => sendResponse({ ok: false, error: e.message }));
+      return true;
+    }
+
+    // 查詢目前使用者是否有編輯器權限
+    case 'fb_checkEditorPermission': {
+      const user = getCurrentUser();
+      if (!user) { sendResponse({ ok: true, enabled: false, reason: 'not_logged_in' }); return false; }
+      // 管理員帳號預設永遠有編輯權限
+      const ADMIN_EMAILS = ['kuoway79@gmail.com'];
+      if (ADMIN_EMAILS.includes(user.email)) {
+        sendResponse({ ok: true, enabled: true });
+        return false;
+      }
+      getDoc(`editor_permissions/${user.uid}`)
+        .then(doc => sendResponse({ ok: true, enabled: doc?.enabled === true }))
+        .catch(()  => sendResponse({ ok: true, enabled: false }));
+      return true;
+    }
+
+    // 管理員：取得所有申請列表
+    case 'fb_getEditorPermissions': {
+      const user = getCurrentUser();
+      if (!user) { sendResponse({ ok: false, entries: [] }); return false; }
+      getCollection('editor_permissions', { orderBy: { field: 'requestedAt', dir: 'DESCENDING' } })
+        .then(entries => sendResponse({ ok: true, entries }))
+        .catch(e      => sendResponse({ ok: false, error: e.message, entries: [] }));
+      return true;
+    }
+
+    // 管理員：更新某使用者的 enabled 狀態
+    case 'fb_setEditorPermission': {
+      const user = getCurrentUser();
+      if (!user) { sendResponse({ ok: false, error: '未登入' }); return false; }
+      updateDoc(`editor_permissions/${msg.uid}`, { enabled: msg.enabled })
+        .then(() => sendResponse({ ok: true }))
+        .catch(e  => sendResponse({ ok: false, error: e.message }));
       return true;
     }
 
