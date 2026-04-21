@@ -453,3 +453,74 @@ node test.mjs
 | listener 洩漏 | 所有 addEventListener 的 handler 必須存為具名變數，exitMode 時明確 remove |
 | 儲存格式 | 統一以物件 `{ primarySubtitles, secondarySubtitles }` 存取，讀取兼容舊格式 |
 | 呼叫路徑缺口 | 功能函式呼叫點要覆蓋所有可能的 entry（有字幕/無字幕/reload 等路徑） |
+
+---
+
+## 2026-04-21 技術日報
+
+### 語言自動切換 bug 根因與修正
+
+**問題**：主字幕語言在使用者未操作的情況下自動切換為土耳其文等非英語語系。
+
+**根因分析**：
+- `renderLanguages` 在 `anyMatched=false`（影片無偏好語言）時，下拉選單 UI 自動選中第一個可用 track（例如土耳其文）
+- 使用者切換任何設定（字型大小、ASR 語言等）觸發 `saveSettings()`
+- `saveSettings()` 將整個 `settings` 物件序列化，包含被 change event 改掉的 `settings.primaryLang='tr'`
+- 下次載入時 'tr' 成為全域偏好語言
+
+**修正方式**：
+- 在 `langDropdown.change` handler 中加 `anyMatched` guard
+- `anyMatched=true`（影片有偏好語言）：使用者切換視為全域偏好更新，更新 settings 並立即 `saveSettings()`
+- `anyMatched=false`：切換僅為臨時 in-video 覆蓋，不觸碰 `settings.primaryLang`
+- 「套用」按鈕屬明確操作，不論 anyMatched 為何都更新並持久化
+
+**關鍵程式碼位置**：`content.js renderLanguages()` → `langDropdown.addEventListener('change', ...)`
+
+---
+
+### sync loop DOM 抖動修正
+
+**問題**：字幕同步每 100ms 執行一次，DOM 持續抖動。
+
+**根因**：
+1. `ovSec.textContent = secText` 每 100ms 無條件寫入，即使文字未變
+2. `curSecEl.textContent = ...` 同上
+3. `scrollIntoView({ behavior: 'smooth' })` 對同一列表項每 100ms 重複驅動，smooth scroll 不斷競爭
+4. `items[i].classList.toggle('active', ...)` 對所有列表項每 100ms 全跑一遍
+
+**修正方式**：
+- 所有 textContent 寫入改為 `dataset.text` 防護：只有內容改變才寫
+- `curWrap.classList.toggle` 加 `dataset.active` 防護
+- 新增模組層級 `_lastSyncPrimIdx` 追蹤上一次的 primIdx
+- 只有 primIdx 改變時才重跑整個列表 classList 更新
+- `scrollIntoView` 移至 primIdx 改變判斷內，確保每次 index 切換只呼叫一次
+- 移除 loop debug 用的 `console.log`（對效能有明顯影響）
+
+---
+
+### 字幕查詢 popup 視覺改版
+
+- 寬度 320→640px，padding 12→24px，max-height 420→80vh
+- 所有字體 ×1.5（主詞 28px、中文翻譯 24px、定義/例句 18px）
+- 定位從 anchor 旁邊改為 `left:50% top:50% transform:translate(-50%,-50%)` 畫面正中
+- 新增 `.yt-sub-popup-save-btn`：`_savedWordSet` 即時判斷是否已存，已存顯示灰色 disabled 狀態
+- 按鈕點擊呼叫 `saveWord()`，同步更新按鈕文字與 classList，無需重開 popup
+
+---
+
+### 下拉選單箭頭統一
+
+- 所有 `.yt-sub-lang-select`、`.yt-sub-select` 加上 `appearance: none`
+- 以 `background-image` 注入 SVG chevron（URL-encoded），`background-position: right 8px center`
+- `padding-right: 28px` 確保文字不被箭頭遮蓋
+- 視覺效果：箭頭間距一致，顏色 `#a1a1aa`，各瀏覽器行為統一
+
+---
+
+### Overlay 導覽按鈕改善
+
+- HTML entities `&#8249;`/`&#8250;`（‹ ›）字形在字型中不對稱，水平置中偏差
+- 改為內嵌 SVG `<polyline>`，`viewBox="0 0 24 24"` 路徑精確對稱
+- `align-items` 從 `flex-end` 改為 `center`，`align-self: center` 補強
+- 導覽按鈕現在永遠垂直置中於字幕 body
+

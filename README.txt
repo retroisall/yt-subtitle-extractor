@@ -18,6 +18,59 @@ YT Subtitle Demo - YouTube 字幕提取器
 - 切換影片時會自動重新載入字幕清單
 
 
+v4.7 更新紀錄（2026-04-21）
+============================
+
+【新功能】
+
+■ 生字本單字高亮（字幕中）
+  - 已存入生字本的單字，在字幕列表與 Overlay 中自動以系統設定顏色標記
+  - 使用 CSS 變數 --secondary-color / --ov-secondary-color，與使用者顏色主題一致
+  - 新增/刪除單字時即時更新所有現存 DOM span，無需等待下一句刷新
+
+■ 三層權限系統
+  - guest（未登入）：僅可使用雙語原生字幕
+  - user（已登入 Google）：追加單字幕 + Google 翻譯功能
+  - editor（管理員授予）：開放全功能，包含社群字幕上傳 / 載入
+  - 未達權限時顯示升級提示，引導登入或聯繫管理員
+
+■ 後台權限管理分頁
+  - vocab-dashboard 新增「權限管理」分頁
+  - 三層等級說明（guest / user / editor）
+  - 統計列：總人數、user 數、editor 數
+  - 支援篩選、「授予 Editor」/ 「撤銷 Editor」快速操作（附確認彈窗）
+
+■ 字幕編輯器（YEM）副字幕同步修正
+  - 新增字幕列時副字幕正確插入空行，不再錯位帶入下一句內容
+  - 刪除字幕列時同步刪除對應副字幕
+  - 合併字幕列時同步合併副字幕文字
+
+【修正】
+
+■ 語言自動切換 bug 修正
+  - 影片無偏好語言（anyMatched=false）時，下拉選單切換不再污染全域 settings.primaryLang
+  - 臨時切換只影響當前影片，不被後續 saveSettings() 持久化
+  - 明確使用者操作（套用按鈕）才更新並立即持久化設定
+
+■ 原生字幕被 customSubtitleActive 封鎖
+  - 主動切換語言下拉 / 點套用按鈕時自動清除 customSubtitleActive flag
+  - 確保原生字幕正常載入
+
+■ 音樂 MV 副字幕偶發缺失
+  - 新增 findSecondaryForPrimary：startTime+0.1 查找失敗時，改用 2 秒容差最近句 fallback
+  - fillMissingSecondary 新增條目 duration 最低 1 秒，避免後續 midpoint 查找失效
+
+【UI 調整】
+
+- 字幕查詢 popup 放大至 2 倍（640px）、字型放大 1.5 倍、畫面置中
+- popup 底部加入「＋ 加入生字本」大型按鈕，已存入自動顯示「✓ 已在生字本」
+- 下拉選單箭頭改為自訂 SVG，間距統一（移除瀏覽器預設 appearance）
+- Overlay ‹ › 導覽按鈕改為 SVG chevron，水平完全置中
+- Overlay 導覽按鈕垂直置中對齊字幕 body（align-self: center）
+- 同步 loop DOM 寫入加防護：只有內容真正改變才觸發，scrollIntoView 僅在 index 切換時呼叫一次
+
+---
+
 v4.6 更新紀錄（2026-04-19）
 ============================
 

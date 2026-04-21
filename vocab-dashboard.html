@@ -32,6 +32,7 @@
     <button class="tab-btn" data-tab="memory">🧠 記憶</button>
     <button class="tab-btn" data-tab="games">🎮 遊戲</button>
     <button class="tab-btn" data-tab="settings">⚙️ 設定</button>
+    <button class="tab-btn" data-tab="permissions">🔑 權限管理</button>
   </nav>
 
   <!-- ===== Tab 內容 ===== -->
@@ -342,6 +343,50 @@ service cloud.firestore {
           <div id="settings-user-info"></div>
           <button class="vd-tool-btn" id="settings-signout-btn" style="margin-top:8px">登出</button>
         </div>
+      </div>
+    </section>
+
+    <section id="tab-permissions" class="tab-panel">
+      <div id="permissions-admin-only" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+          <h2 style="margin:0">使用者權限管理</h2>
+          <button class="vd-tool-btn" id="perm-refresh-btn">↺ 重新整理</button>
+        </div>
+        <!-- 三層說明 -->
+        <div class="perm-tier-legend">
+          <div class="perm-tier-item">
+            <span class="perm-tier-badge tier-guest">guest</span>
+            <span>未登入 Google — 只能查看雙語原生字幕</span>
+          </div>
+          <div class="perm-tier-item">
+            <span class="perm-tier-badge tier-user">user</span>
+            <span>已登入 — 可使用單字幕 + 翻譯功能</span>
+          </div>
+          <div class="perm-tier-item">
+            <span class="perm-tier-badge tier-editor">editor</span>
+            <span>授權帳號 — 可使用社群字幕等全部功能</span>
+          </div>
+        </div>
+        <!-- 統計列 -->
+        <div id="perm-stats" class="perm-stats"></div>
+        <!-- 篩選 -->
+        <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+          <label style="font-size:13px;color:var(--ed-text2)">篩選：</label>
+          <select id="perm-filter" class="vd-select" style="width:140px">
+            <option value="all">全部</option>
+            <option value="editor">editor（已核准）</option>
+            <option value="user">user（待審核）</option>
+          </select>
+        </div>
+        <table class="data-table" id="perm-table">
+          <thead><tr>
+            <th>Email</th><th>顯示名稱</th><th>申請時間</th><th>權限等級</th><th>操作</th>
+          </tr></thead>
+          <tbody id="perm-tbody"></tbody>
+        </table>
+      </div>
+      <div id="permissions-no-access" style="display:none;padding:40px;text-align:center;color:#71717a">
+        此頁面僅限管理員存取
       </div>
     </section>
 

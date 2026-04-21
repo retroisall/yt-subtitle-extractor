@@ -99,6 +99,31 @@ html, body { overflow: hidden; display: flex; flex-direction: column; height: 10
 .tier-C1 { background:#fecaca;color:#991b1b; } .tier-C2 { background:#e9d5ff;color:#6b21a8; }
 .tier-unknown, .tier-UNKNOWN { background:var(--ed-bg3);color:var(--ed-text2); }
 
+/* 權限管理 — 三層 tier */
+.perm-tier-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+}
+.tier-guest  { background: #27272a; color: #71717a; border: 1px solid #3f3f46; }
+.tier-user   { background: #1e3a5f; color: #60a5fa; border: 1px solid #1d4ed8; }
+.tier-editor { background: #2d1b69; color: #a78bfa; border: 1px solid #7c3aed; }
+
+.perm-tier-legend {
+  display: flex; flex-direction: column; gap: 6px;
+  background: var(--ed-bg2); border-radius: 8px;
+  padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: var(--ed-text2);
+}
+.perm-tier-item { display: flex; align-items: center; gap: 10px; }
+
+.perm-stats {
+  display: flex; gap: 16px; margin-bottom: 12px;
+  font-size: 13px; color: var(--ed-text2);
+}
+.perm-stat-item { display: flex; align-items: center; gap: 6px; }
+
+.perm-btn-grant { border-color: #22c55e !important; color: #22c55e !important; }
+.perm-btn-revoke { border-color: #ef4444 !important; color: #ef4444 !important; }
+
 /* 狀態 Badge */
 .status-badge, .type-badge {
   display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;

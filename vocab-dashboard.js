@@ -262,8 +262,110 @@ function loadTab(tabId) {
     case 'schedule': loadSchedule(); break;
     case 'memory':   loadMemory(); break;
     case 'games':    loadGames(); break;
-    case 'settings': break;
+    case 'settings':     break;
+    case 'permissions':  loadPermissions(); break;
   }
+}
+
+// ----- 權限管理 -----
+const ADMIN_EMAIL = 'kuoway79@gmail.com';
+
+let _permEntries = []; // 快取所有申請，供篩選重用
+
+async function loadPermissions() {
+  const isAdmin = _userInfo?.email === ADMIN_EMAIL;
+  document.getElementById('permissions-admin-only').style.display = isAdmin ? '' : 'none';
+  document.getElementById('permissions-no-access').style.display  = isAdmin ? 'none' : '';
+  if (!isAdmin) return;
+  await _renderPermTable();
+  document.getElementById('perm-refresh-btn').onclick = _renderPermTable;
+  document.getElementById('perm-filter').addEventListener('change', _applyPermFilter);
+}
+
+async function _renderPermTable() {
+  const tbody = document.getElementById('perm-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#71717a">載入中...</td></tr>';
+  let res;
+  try { res = await sendMsg('fb_getEditorPermissions'); }
+  catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:#ef4444">連線失敗，請重試（${e.message}）</td></tr>`;
+    return;
+  }
+  if (!res?.ok) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:#ef4444">讀取失敗：${res?.error || '未知'}</td></tr>`;
+    return;
+  }
+  _permEntries = res.entries || [];
+
+  // 統計
+  const editorCount = _permEntries.filter(e => e.enabled).length;
+  const userCount   = _permEntries.filter(e => !e.enabled).length;
+  const statsEl = document.getElementById('perm-stats');
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <span class="perm-stat-item"><span class="perm-tier-badge tier-editor">editor</span> ${editorCount} 人</span>
+      <span class="perm-stat-item"><span class="perm-tier-badge tier-user">user</span> ${userCount} 人待審核</span>
+    `;
+  }
+
+  _applyPermFilter();
+}
+
+function _applyPermFilter() {
+  const filter = document.getElementById('perm-filter')?.value || 'all';
+  const tbody = document.getElementById('perm-tbody');
+  if (!tbody) return;
+
+  const entries = _permEntries.filter(e => {
+    if (filter === 'editor') return e.enabled;
+    if (filter === 'user')   return !e.enabled;
+    return true;
+  });
+
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#71717a">無符合記錄</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = '';
+  for (const entry of entries) {
+    const tr = document.createElement('tr');
+    const date = entry.requestedAt ? new Date(entry.requestedAt).toLocaleString('zh-TW') : '—';
+    const tier = entry.enabled ? 'editor' : 'user';
+    const tierBadgeHtml = `<span class="perm-tier-badge tier-${tier}">${tier}</span>`;
+    const actionBtn = entry.enabled
+      ? `<button class="vd-tool-btn perm-toggle-btn perm-btn-revoke" data-uid="${entry.uid}" data-enabled="false">撤銷 Editor</button>`
+      : `<button class="vd-tool-btn perm-toggle-btn perm-btn-grant" data-uid="${entry.uid}" data-enabled="true">授予 Editor</button>`;
+    tr.innerHTML = `
+      <td>${esc(entry.email || '—')}</td>
+      <td>${esc(entry.displayName || '—')}</td>
+      <td style="white-space:nowrap">${date}</td>
+      <td>${tierBadgeHtml}</td>
+      <td>${actionBtn}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  // 綁定核准/撤銷按鈕
+  tbody.querySelectorAll('.perm-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const enabled = btn.dataset.enabled === 'true';
+      const confirmMsg = enabled
+        ? `確定授予此帳號 Editor 權限？`
+        : `確定撤銷此帳號的 Editor 權限？撤銷後將降為 user 等級。`;
+      if (!confirm(confirmMsg)) return;
+      btn.disabled = true;
+      btn.textContent = '處理中...';
+      const r = await sendMsg('fb_setEditorPermission', { uid: btn.dataset.uid, enabled });
+      if (r?.ok) {
+        await _renderPermTable();
+      } else {
+        btn.disabled = false;
+        btn.textContent = enabled ? '授予 Editor' : '撤銷 Editor';
+        alert('操作失敗：' + (r?.error || '未知'));
+      }
+    });
+  });
 }
 
 // ===========================
