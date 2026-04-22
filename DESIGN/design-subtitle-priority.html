@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440">
+<title>字幕優先模式 — Design Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #09090b;
+    color: #fafafa;
+    font-family: system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    width: 1440px;
+    overflow-x: hidden;
+  }
+
+  /* ─── Top Bar ─── */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    background: #09090b;
+    border-bottom: 1px solid #27272a;
+    height: 52px;
+  }
+  .top-bar .yt-logo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #fafafa;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .yt-logo-icon {
+    width: 32px;
+    height: 22px;
+    background: #ff0000;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .yt-logo-icon::after {
+    content: '';
+    border-left: 10px solid #fff;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+  }
+  .top-bar-spacer { flex: 1; }
+  .mode-badge {
+    background: #7c3aed;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .restore-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #18181b;
+    border: 1px solid #27272a;
+    color: #a1a1aa;
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .restore-btn:hover { border-color: #7c3aed; color: #fafafa; }
+
+  /* ─── Main Layout ─── */
+  .main {
+    display: flex;
+    gap: 0;
+    height: calc(100vh - 52px - 54px);
+    padding: 24px 32px;
+    gap: 32px;
+  }
+
+  /* ─── Left Panel: PiP + Info ─── */
+  .left-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 340px;
+    flex-shrink: 0;
+  }
+
+  .pip-card {
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,58,237,0.15);
+    position: relative;
+  }
+
+  .pip-video {
+    width: 100%;
+    height: 180px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .pip-video::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Ccircle cx='30' cy='30' r='28' fill='rgba(0,0,0,0.4)' stroke='rgba(255,255,255,0.15)' stroke-width='1.5'/%3E%3Cpolygon points='24,18 24,42 44,30' fill='rgba(255,255,255,0.8)'/%3E%3C/svg%3E") center center / 60px no-repeat;
+  }
+
+  .pip-thumbnail-text {
+    position: absolute;
+    bottom: 8px;
+    left: 10px;
+    background: rgba(0,0,0,0.75);
+    color: #fafafa;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .pip-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #18181b;
+    border-top: 1px solid #27272a;
+  }
+  .pip-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: #27272a;
+    border: none;
+    color: #fafafa;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .pip-btn.primary { background: #7c3aed; }
+  .pip-progress {
+    flex: 1;
+    height: 3px;
+    background: #3f3f46;
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+  }
+  .pip-progress-fill {
+    width: 38%;
+    height: 100%;
+    background: #7c3aed;
+    border-radius: 2px;
+  }
+  .pip-progress-thumb {
+    position: absolute;
+    top: 50%;
+    left: 38%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    background: #a855f7;
+    border-radius: 50%;
+  }
+  .pip-time {
+    font-size: 11px;
+    color: #a1a1aa;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .pip-vol {
+    font-size: 13px;
+    color: #a1a1aa;
+    flex-shrink: 0;
+  }
+
+  /* ─── Video Info ─── */
+  .video-info {
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .video-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fafafa;
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+  .video-author {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .author-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    flex-shrink: 0;
+  }
+  .author-name {
+    font-size: 12px;
+    color: #a1a1aa;
+  }
+  .video-stats {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #27272a;
+  }
+  .stat-item {
+    font-size: 11px;
+    color: #71717a;
+  }
+  .stat-item span {
+    color: #a1a1aa;
+    font-weight: 500;
+  }
+
+  /* ─── Subtitle Stats ─── */
+  .sub-stats {
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .sub-stats-title {
+    font-size: 11px;
+    color: #71717a;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+  }
+  .progress-item {
+    margin-bottom: 10px;
+  }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #a1a1aa;
+    margin-bottom: 4px;
+  }
+  .progress-bar {
+    height: 4px;
+    background: #27272a;
+    border-radius: 2px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: #7c3aed;
+    border-radius: 2px;
+  }
+
+  /* ─── Right Panel: Subtitle List ─── */
+  .subtitle-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .subtitle-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-shrink: 0;
+  }
+  .subtitle-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #fafafa;
+  }
+  .subtitle-header-count {
+    font-size: 13px;
+    color: #71717a;
+  }
+
+  .subtitle-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 6px;
+  }
+  .subtitle-list::-webkit-scrollbar { width: 4px; }
+  .subtitle-list::-webkit-scrollbar-track { background: transparent; }
+  .subtitle-list::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 2px; }
+
+  .subtitle-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-left: 3px solid transparent;
+  }
+  .subtitle-row:hover { background: #18181b; }
+  .subtitle-row.active {
+    background: rgba(124, 58, 237, 0.15);
+    border-left-color: #7c3aed;
+  }
+
+  .sub-time {
+    font-size: 11px;
+    color: #52525b;
+    width: 48px;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .subtitle-row.active .sub-time { color: #a855f7; }
+
+  .sub-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .sub-text-primary {
+    font-size: 20px;
+    font-weight: 400;
+    color: #e4e4e7;
+    line-height: 1.5;
+  }
+  .subtitle-row.active .sub-text-primary {
+    color: #fafafa;
+    font-weight: 500;
+  }
+  .sub-text-secondary {
+    font-size: 13px;
+    color: #71717a;
+    margin-top: 2px;
+  }
+
+  .sub-loop-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: transparent;
+    border: 1px solid #27272a;
+    color: #52525b;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+    flex-shrink: 0;
+  }
+  .subtitle-row:hover .sub-loop-btn { opacity: 1; }
+  .subtitle-row.active .sub-loop-btn {
+    opacity: 1;
+    background: rgba(124,58,237,0.2);
+    border-color: #7c3aed;
+    color: #a855f7;
+  }
+
+  /* ─── Bottom Toolbar ─── */
+  .bottom-toolbar {
+    height: 54px;
+    background: #18181b;
+    border-top: 1px solid #27272a;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 32px;
+  }
+  .toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toolbar-label {
+    font-size: 12px;
+    color: #71717a;
+  }
+  .lang-select {
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    color: #fafafa;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    appearance: none;
+    padding-right: 24px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2371717a'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+  }
+  .toggle-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .toggle {
+    width: 36px;
+    height: 20px;
+    background: #7c3aed;
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+  }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-radius: 50%;
+  }
+  .toggle.off {
+    background: #3f3f46;
+  }
+  .toggle.off::after { right: auto; left: 3px; }
+  .toolbar-sep {
+    width: 1px;
+    height: 24px;
+    background: #27272a;
+  }
+  .font-size-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .font-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: #27272a;
+    border: none;
+    color: #a1a1aa;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .font-size-val {
+    font-size: 12px;
+    color: #a1a1aa;
+    min-width: 30px;
+    text-align: center;
+  }
+  .bottom-toolbar-spacer { flex: 1; }
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .progress-indicator {
+    font-size: 12px;
+    color: #71717a;
+  }
+  .progress-indicator span { color: #a855f7; }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <div class="yt-logo">
+    <div class="yt-logo-icon"></div>
+    YouTube
+  </div>
+  <div class="mode-badge">字幕優先模式</div>
+  <div class="top-bar-spacer"></div>
+  <button class="restore-btn">
+    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    還原正常模式
+  </button>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+
+  <!-- Left Panel -->
+  <div class="left-panel">
+
+    <!-- PiP Video Card -->
+    <div class="pip-card">
+      <div class="pip-video">
+        <div class="pip-thumbnail-text">LIVE → 02:14:38</div>
+      </div>
+      <div class="pip-controls">
+        <button class="pip-btn primary">▶</button>
+        <button class="pip-btn" style="font-size:11px">⏭</button>
+        <div class="pip-progress">
+          <div class="pip-progress-fill"></div>
+          <div class="pip-progress-thumb"></div>
+        </div>
+        <span class="pip-time">08:32 / 22:15</span>
+        <span class="pip-vol">🔊</span>
+      </div>
+    </div>
+
+    <!-- Video Info -->
+    <div class="video-info">
+      <div class="video-title">How I Learned Japanese to N2 in 18 Months (Full Breakdown)</div>
+      <div class="video-author">
+        <div class="author-avatar"></div>
+        <span class="author-name">Matt vs Japan · 482K subscribers</span>
+      </div>
+      <div class="video-stats">
+        <div class="stat-item"><span>2.1M</span> 次觀看</div>
+        <div class="stat-item"><span>48K</span> 讚</div>
+        <div class="stat-item"><span>JA → ZH-TW</span></div>
+      </div>
+    </div>
+
+    <!-- Reading Progress -->
+    <div class="sub-stats">
+      <div class="sub-stats-title">學習進度</div>
+      <div class="progress-item">
+        <div class="progress-label">
+          <span>已讀字幕</span>
+          <span>38 / 124 句</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" style="width:31%"></div>
+        </div>
+      </div>
+      <div class="progress-item">
+        <div class="progress-label">
+          <span>影片進度</span>
+          <span>08:32 / 22:15</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" style="width:38%"></div>
+        </div>
+      </div>
+      <div class="progress-item">
+        <div class="progress-label">
+          <span>生字標記</span>
+          <span>12 個</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" style="width:60%; background:#a855f7"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Subtitle Panel -->
+  <div class="subtitle-panel">
+    <div class="subtitle-header">
+      <div>
+        <h2>字幕列表</h2>
+      </div>
+      <span class="subtitle-header-count">顯示 124 句 · 正在播放第 38 句</span>
+    </div>
+
+    <div class="subtitle-list">
+
+      <div class="subtitle-row">
+        <span class="sub-time">07:44</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">日本語の勉強を始めたのは大学一年生のときでした。</div>
+          <div class="sub-text-secondary">我在大學一年級時開始學習日語。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">07:58</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">最初の半年間は毎日アニメを見て、耳を慣らすことに集中しました。</div>
+          <div class="sub-text-secondary">最初的半年，我每天看動漫，專注於讓耳朵習慣日語。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">08:12</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">文法は最低限だけ、あとはひたすらインプットを増やしました。</div>
+          <div class="sub-text-secondary">文法只學最低限度，之後就是拼命增加輸入量。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <!-- Active Row -->
+      <div class="subtitle-row active">
+        <span class="sub-time">08:32</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">N2に合格したとき、正直まだ話せないと感じていました。</div>
+          <div class="sub-text-secondary">通過 N2 的時候，老實說我覺得自己還是不太能說。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">08:51</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">試験対策よりも、自然な会話力の方が大切だと今は思います。</div>
+          <div class="sub-text-secondary">現在我認為，比起應試技巧，自然的會話能力更為重要。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">09:07</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">一番効果があったのは、やっぱりシャドーイングだと思います。</div>
+          <div class="sub-text-secondary">我認為效果最好的，還是跟讀練習（shadowing）。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">09:22</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">毎日30分、ポッドキャストを使ってシャドーイングを続けました。</div>
+          <div class="sub-text-secondary">每天使用 Podcast 進行 30 分鐘的跟讀練習，持續不斷。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">09:40</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">漢字については、RTKという本を使って認識だけ先に覚えました。</div>
+          <div class="sub-text-secondary">關於漢字，我使用 RTK 這本書，先只學認字，不學寫法。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">09:55</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">RTKを終えたあとは、語彙カードをAnkiで管理しました。</div>
+          <div class="sub-text-secondary">完成 RTK 之後，我用 Anki 管理詞彙卡片。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">10:11</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">一日200枚のカードを三ヶ月で消化したとき、自信がつきました。</div>
+          <div class="sub-text-secondary">三個月內消化了每天 200 張卡片後，我開始有了自信。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">10:28</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">その後は読書に切り替えて、毎月一冊以上の本を読みました。</div>
+          <div class="sub-text-secondary">之後轉向閱讀，每個月至少讀一本書。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">10:44</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">小説よりも、まずは興味のある分野のノンフィクションから始めました。</div>
+          <div class="sub-text-secondary">比起小說，我先從感興趣的非虛構類書籍開始讀起。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">11:02</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">リスニングとリーディングのバランスが、上達の鍵だと感じています。</div>
+          <div class="sub-text-secondary">我認為聽力與閱讀的平衡，是進步的關鍵。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">11:18</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">スピーキングは一番後回しにして、まずは土台を固めました。</div>
+          <div class="sub-text-secondary">口說是最後才練習的，先把基礎打好。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">11:35</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">18ヶ月後にN2を取得して、就職活動でも役立ちました。</div>
+          <div class="sub-text-secondary">18 個月後取得 N2，在求職時也派上了用場。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+      <div class="subtitle-row">
+        <span class="sub-time">11:52</span>
+        <div class="sub-text">
+          <div class="sub-text-primary">もし最初からやり直せるなら、もっと早く多読を始めると思います。</div>
+          <div class="sub-text-secondary">如果能從頭再來，我想會更早開始大量閱讀。</div>
+        </div>
+        <button class="sub-loop-btn">⟳</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Toolbar -->
+<div class="bottom-toolbar">
+  <div class="toolbar-group">
+    <span class="toolbar-label">字幕語言</span>
+    <select class="lang-select">
+      <option>日語 (JA)</option>
+      <option>英語 (EN)</option>
+      <option>韓語 (KO)</option>
+    </select>
+  </div>
+  <div class="toolbar-sep"></div>
+  <div class="toolbar-group">
+    <span class="toolbar-label">翻譯語言</span>
+    <select class="lang-select">
+      <option>繁體中文 (ZH-TW)</option>
+      <option>簡體中文 (ZH-CN)</option>
+      <option>英語 (EN)</option>
+    </select>
+  </div>
+  <div class="toolbar-sep"></div>
+  <div class="toggle-group">
+    <div class="toggle"></div>
+    <span class="toolbar-label">雙語顯示</span>
+  </div>
+  <div class="toolbar-sep"></div>
+  <div class="toggle-group">
+    <div class="toggle off"></div>
+    <span class="toolbar-label">自動捲動</span>
+  </div>
+  <div class="toolbar-sep"></div>
+  <div class="font-size-ctrl">
+    <span class="toolbar-label">字體</span>
+    <button class="font-btn">−</button>
+    <span class="font-size-val">20px</span>
+    <button class="font-btn">+</button>
+  </div>
+  <div class="bottom-toolbar-spacer"></div>
+  <div class="toolbar-right">
+    <span class="progress-indicator">進度 <span>38/124</span> 句 · <span>31%</span></span>
+  </div>
+</div>
+
+</body>
+</html>

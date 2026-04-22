@@ -18,6 +18,77 @@ YT Subtitle Demo - YouTube 字幕提取器
 - 切換影片時會自動重新載入字幕清單
 
 
+v4.9 更新紀錄（2026-04-22）
+============================
+
+【新功能】
+
+■ 字幕模式（Subtitle Mode）完整功能
+  - 搜尋框：字頭前綴過濾，即時顯示命中句數
+  - 單字點擊：整合 buildTokenizedText，可直接從字幕模式開啟字典 Popup
+  - 循環按鈕（⇄）：點擊啟動該句循環，再點取消；切換句時 active 立即轉移（不等 300ms）
+  - 時間戳點擊 / 句子背景點擊：跳轉影片到對應時間
+  - 手動捲動不被 300ms interval 鎖定（只有句子切換時才自動捲動）
+
+【修正】
+
+■ 字幕模式右鍵存字失效
+  - initWindowContextMenu 未涵蓋 #yt-sub-subtitle-mode
+  - 補上 inSubtitle = e.target.closest('#yt-sub-subtitle-mode') 判斷
+
+■ 退出字幕模式 timeupdate listener 未移除
+  - enterSubtitleMode 加 timeupdate 到 video 後未在 exitSubtitleMode 清除
+  - 新增 _ysmTimeUpdateHandler 模組層級變數，退出時正確 removeEventListener
+
+■ 字幕模式切換循環句 active 不即時更新
+  - updateCurrentLoopStyle 的 _lastLoopingState 短路導致 updateWbLoopBtn 不執行
+  - 改為先呼叫 updateWbLoopBtn，再做短路；updateWbLoopBtn 補上 .ysm-loop-btn 更新邏輯
+
+■ 本地字幕被 YouTube 字幕覆蓋（production bug）
+  - YouTube 字幕 message handler 無 customSubtitleActive 保護，直接覆蓋 primarySubtitles
+  - _restoreSavedSubtitle 還原後未設 customSubtitleActive = true，YouTube 字幕後至仍能蓋掉
+  - 翻譯函數（translateAndSetSecondary / translatePrimarySubtitles）完成時無條件更新 status
+  - _showTranslationGate（未登入提示）無條件覆蓋 status
+  - renderLanguages「找到 N 個字幕語言」無條件覆蓋 status
+  - 全部補上 !customSubtitleActive 保護，確保本地/社群字幕啟用時狀態不被蓋掉
+
+■ 循環播放 duration 為 0 時立即觸發
+  - 補上 Math.max(loopSub.duration || 0, 1) 保護，最少 1 秒才允許 loop 回頭
+
+---
+
+v4.8 更新紀錄（2026-04-22）
+============================
+
+【新功能】
+
+■ 過濾狀聲詞
+  - 設定中新增「過濾狀聲詞 [Music] 等方括號標示」開關（預設關閉）
+  - 開啟後自動移除字幕中所有 [xxx] 格式的標記（例如 [Music]、[Applause]）
+  - 同時套用於主字幕列表、Overlay 顯示與翻譯字幕
+
+■ A / D 鍵盤快捷鍵導覽
+  - A 鍵：跳到上一句（等同點擊 ‹ 按鈕）
+  - D 鍵：跳到下一句（等同點擊 › 按鈕）
+  - 設定中新增「A/D 快捷鍵控制上一句/下一句」開關（預設開啟）
+  - 游標在輸入框時自動停用，不影響正常打字
+
+【修正】
+
+■ 播放中點擊「上一句」無法正確回退
+  - 修正播放狀態下 video.currentTime 持續往前移動導致計算基準偏移的問題
+  - 改為：點擊時先暫停 → 以當下時間計算目標句 → seek → 恢復播放
+  - 快速連點時以第一次點擊後的 index 為基準，800ms 鎖定期內不受播放時間干擾
+
+■ 本地 / 社群字幕時語言下拉選單為空
+  - 使用本地字幕或社群字幕時，語言下拉改為顯示「✏ 本地字幕」或「👥 社群字幕」
+  - 不再顯示空白選單
+
+■ XSS 安全性修正
+  - `_renderSubtitleModeList` 改用 DOM API 建構節點，移除 innerHTML 拼接避免注入風險
+
+---
+
 v4.7 更新紀錄（2026-04-21）
 ============================
 

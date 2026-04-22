@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>學習Bar — 點陣 LOGO 設計選擇</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #09090b; color: #fafafa; font-family: 'Inter', -apple-system, sans-serif; padding: 40px 32px; }
+  h1 { font-size: 11px; color: #52525b; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 32px; }
+
+  .grid { display: flex; flex-direction: column; gap: 16px; }
+
+  .card {
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .card:hover  { border-color: #7c3aed; box-shadow: 0 0 0 1px #7c3aed33; }
+  .card.active { border-color: #7c3aed; box-shadow: 0 0 0 2px #7c3aed55; }
+
+  /* Header 模擬 */
+  .mock-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    min-height: 44px;
+    background: #18181b;
+    border-bottom: 1px solid #27272a;
+  }
+  .mock-logo { flex: 1; display: flex; align-items: center; }
+  .mock-btns { display: flex; align-items: center; gap: 8px; margin-right: 46px; }
+  .mock-btn  {
+    width: 28px; height: 28px;
+    border-radius: 6px; background: #27272a;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mock-btn.purple { background: #7c3aed; border-radius: 50%; }
+  .mock-btn svg { width: 14px; height: 14px; color: #71717a; }
+
+  .label { padding: 10px 14px 12px; font-size: 11px; color: #52525b; border-top: 1px solid #1c1c1f; }
+  .label strong { color: #71717a; }
+</style>
+</head>
+<body>
+<h1>學習Bar — 點陣 LOGO 設計選擇</h1>
+<div class="grid" id="grid"></div>
+
+<script>
+// ===== 點陣字型定義（9 rows × 每字寬度）=====
+// Chinese = 7 wide, Latin = 5 wide, gap between chars = 1
+
+const FONT = {
+  '學': [
+    [0,1,0,1,0,1,0],
+    [0,1,1,1,1,1,0],
+    [0,0,1,0,1,0,0],
+    [1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,1],
+    [1,0,1,1,1,0,1],
+    [1,0,1,0,1,0,1],
+    [1,0,1,1,1,0,1],
+    [1,0,0,0,0,0,1],
+  ],
+  '習': [
+    [0,0,1,1,1,0,0],
+    [0,0,1,0,1,0,0],
+    [0,0,1,1,1,0,0],
+    [0,0,0,0,0,0,0],
+    [1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1],
+  ],
+  'B': [
+    [1,1,1,1,0],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,1,1,1,0],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,1,1,1,0],
+    [0,0,0,0,0],
+    [0,0,0,0,0],
+  ],
+  'a': [
+    [0,0,0,0,0],
+    [0,0,0,0,0],
+    [0,1,1,1,0],
+    [0,0,0,0,1],
+    [0,1,1,1,1],
+    [1,0,0,0,1],
+    [0,1,1,1,1],
+    [0,0,0,0,0],
+    [0,0,0,0,0],
+  ],
+  'r': [
+    [0,0,0,0,0],
+    [0,0,0,0,0],
+    [1,0,1,1,0],
+    [1,1,0,0,1],
+    [1,0,0,0,0],
+    [1,0,0,0,0],
+    [1,0,0,0,0],
+    [0,0,0,0,0],
+    [0,0,0,0,0],
+  ],
+};
+
+const ROWS   = 9;
+const TEXT   = ['學','習','B','a','r'];
+const WIDTHS = TEXT.map(c => FONT[c][0].length);
+const GAP_CH = 1; // 字元間距（dots）
+
+// 計算總列數
+function totalCols() {
+  return WIDTHS.reduce((s, w) => s + w, 0) + GAP_CH * (TEXT.length - 1);
+}
+
+// 取得某個 (row, col) 是否亮
+function getBit(row, col) {
+  let x = 0;
+  for (let i = 0; i < TEXT.length; i++) {
+    const w = WIDTHS[i];
+    if (col < x + w) {
+      return FONT[TEXT[i]][row][col - x] || 0;
+    }
+    x += w + GAP_CH;
+    if (col < x) return 0; // gap
+  }
+  return 0;
+}
+
+// ===== 樣式定義 =====
+const STYLES = [
+  {
+    id: 'A',
+    label: 'Style A — 黃橙漸層（匹配原 banner 配色）',
+    dot: 3, gap: 1,
+    onColor: (col, totalCols) => {
+      const t = col / totalCols;
+      const r = Math.round(255 * (1 - t * 0.3));
+      const g = Math.round(180 * (1 - t * 0.4));
+      const b = 0;
+      return `rgb(${r},${g},${b})`;
+    },
+    offColor: 'rgba(255,180,0,0.08)',
+    glow: 'rgba(255,180,0,0.3)',
+  },
+  {
+    id: 'B',
+    label: 'Style B — 紫色（統一 LED 系列色）',
+    dot: 3, gap: 1,
+    onColor: (col, totalCols) => {
+      const t = col / totalCols;
+      const r = Math.round(167 + t * 40);
+      const g = Math.round(139 - t * 40);
+      const b = 250;
+      return `rgb(${r},${g},${b})`;
+    },
+    offColor: 'rgba(124,58,237,0.1)',
+    glow: 'rgba(124,58,237,0.35)',
+  },
+  {
+    id: 'C',
+    label: 'Style C — 青綠色（科技感）',
+    dot: 3, gap: 1,
+    onColor: () => '#22d3ee',
+    offColor: 'rgba(34,211,238,0.08)',
+    glow: 'rgba(34,211,238,0.3)',
+  },
+  {
+    id: 'D',
+    label: 'Style D — Rose 粉（呼應 Icon 點陣）',
+    dot: 3, gap: 1,
+    onColor: (col, totalCols) => {
+      const t = col / totalCols;
+      const r = 244;
+      const g = Math.round(63 + t * 50);
+      const b = Math.round(94 + t * 50);
+      return `rgb(${r},${g},${b})`;
+    },
+    offColor: 'rgba(244,63,94,0.08)',
+    glow: 'rgba(244,63,94,0.3)',
+  },
+  {
+    id: 'E',
+    label: 'Style E — 白色乾淨（最易讀）',
+    dot: 3, gap: 1,
+    onColor: () => '#e4e4e7',
+    offColor: 'rgba(255,255,255,0.06)',
+    glow: 'rgba(255,255,255,0.15)',
+  },
+  {
+    id: 'F',
+    label: 'Style F — 點更大（dot 4px，同右側 LED）',
+    dot: 4, gap: 2,
+    onColor: (col, totalCols) => {
+      const t = col / totalCols;
+      const r = Math.round(255 * (1 - t * 0.3));
+      const g = Math.round(180 * (1 - t * 0.4));
+      const b = 0;
+      return `rgb(${r},${g},${b})`;
+    },
+    offColor: 'rgba(255,180,0,0.07)',
+    glow: 'rgba(255,180,0,0.25)',
+  },
+];
+
+// ===== 繪製點陣 =====
+function drawDotMatrix(canvas, style) {
+  const { dot, gap, onColor, offColor, glow } = style;
+  const cell   = dot + gap;
+  const cols   = totalCols();
+  const dpr    = window.devicePixelRatio || 1;
+  const cssW   = cols * cell;
+  const cssH   = ROWS * cell;
+
+  canvas.width  = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < cols; col++) {
+      const on = getBit(row, col);
+      const x  = col * cell + dot / 2;
+      const y  = row * cell + dot / 2;
+      const r  = dot / 2;
+
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+
+      if (on) {
+        const color = typeof onColor === 'function' ? onColor(col, cols) : onColor;
+        // 發光效果
+        ctx.shadowColor = glow;
+        ctx.shadowBlur  = dot * 2;
+        ctx.fillStyle   = color;
+      } else {
+        ctx.shadowBlur  = 0;
+        ctx.fillStyle   = offColor;
+      }
+      ctx.fill();
+    }
+  }
+  ctx.shadowBlur = 0;
+}
+
+// ===== 建立卡片 =====
+const grid = document.getElementById('grid');
+STYLES.forEach((style, idx) => {
+  const card = document.createElement('div');
+  card.className = 'card' + (idx === 0 ? ' active' : '');
+  card.onclick = () => {
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+  };
+
+  // 模擬 LED 點陣（右側狀態，固定用 has-sub 播放狀態）
+  const ledCanvas = document.createElement('canvas');
+  ledCanvas.style.cssText = 'display:block;';
+  (function drawLed(c) {
+    const dpr = window.devicePixelRatio || 1;
+    const LED_PATTERN = [[1,0,0,0,0],[1,1,1,0,0],[1,0,0,0,0]];
+    const D = 4, G = 2, cell = D + G;
+    c.width  = 5 * cell * dpr;
+    c.height = 3 * cell * dpr;
+    c.style.width  = 5 * cell + 'px';
+    c.style.height = 3 * cell + 'px';
+    const ctx = c.getContext('2d');
+    ctx.scale(dpr, dpr);
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 5; col++) {
+        const on = LED_PATTERN[row][col];
+        ctx.beginPath();
+        ctx.arc(col*cell + D/2, row*cell + D/2, D/2, 0, Math.PI*2);
+        ctx.fillStyle = on ? '#4ade80' : '#27272a';
+        ctx.fill();
+      }
+    }
+  })(ledCanvas);
+
+  const logoCanvas = document.createElement('canvas');
+
+  const header = document.createElement('div');
+  header.className = 'mock-header';
+
+  const mockLogo = document.createElement('div');
+  mockLogo.className = 'mock-logo';
+  const logoWrap = document.createElement('div');
+  logoWrap.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  logoWrap.appendChild(logoCanvas);
+  logoWrap.appendChild(ledCanvas);
+  mockLogo.appendChild(logoWrap);
+
+  const btns = document.createElement('div');
+  btns.className = 'mock-btns';
+  btns.innerHTML = `
+    <div class="mock-btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 8A5 5 0 1 1 8 3M13 3v5h-5"/></svg></div>
+    <div class="mock-btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 4v4l3 3"/><circle cx="8" cy="8" r="5"/></svg></div>
+    <div class="mock-btn purple"></div>
+  `;
+
+  header.appendChild(mockLogo);
+  header.appendChild(btns);
+
+  const label = document.createElement('div');
+  label.className = 'label';
+  label.innerHTML = `<strong>${style.id}</strong>｜${style.label}`;
+
+  card.appendChild(header);
+  card.appendChild(label);
+  grid.appendChild(card);
+
+  // 下一 tick 渲染（確保 canvas 已在 DOM）
+  requestAnimationFrame(() => drawDotMatrix(logoCanvas, style));
+});
+</script>
+</body>
+</html>

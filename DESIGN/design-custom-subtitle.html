@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自定義字幕 — UI 設計預覽 v4</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #09090b; color: #fafafa;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  padding: 40px 32px 80px;
+}
+h1 { font-size: 18px; font-weight: 700; color: #a78bfa; margin-bottom: 6px; }
+.page-sub { font-size: 12px; color: #71717a; margin-bottom: 40px; }
+h2 { font-size: 11px; font-weight: 600; color: #52525b; letter-spacing:.08em; text-transform:uppercase; margin-bottom:16px; }
+.section { margin-bottom: 72px; }
+.annotation { font-size: 11px; color: #52525b; line-height: 1.8; margin-top: 14px; max-width: 980px; }
+.row-label { font-size: 10px; color: #52525b; font-weight: 600; letter-spacing:.06em; text-transform:uppercase; margin-bottom:10px; }
+.flex-row { display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; }
+
+/* ── Logo ── */
+.logo { display: inline-flex; align-items: center; }
+.logo-zh { font-size: 13px; font-weight: 700; background: #7c3aed; color: #fff; padding: 2px 6px; border-radius: 4px 0 0 4px; letter-spacing:.05em; }
+.logo-bar { font-size: 13px; font-weight: 700; background: #e4e4e7; color: #18181b; padding: 2px 6px; border-radius: 0 4px 4px 0; letter-spacing:-.03em; }
+
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; border: 1px solid transparent; transition: all .15s; }
+.btn-sm { padding: 5px 11px; font-size: 11px; }
+.btn-ghost { background: transparent; border-color: #3f3f46; color: #a1a1aa; }
+.btn-ghost:hover { border-color: #52525b; color: #fafafa; }
+.btn-purple { background: transparent; border-color: rgba(124,58,237,.4); color: #a78bfa; }
+.btn-purple:hover { background: rgba(124,58,237,.1); }
+.btn-primary { background: #7c3aed; border-color: #6d28d9; color: #fff; }
+
+/* ══ GLOBAL TOGGLE BUTTONS ══
+   ▶ 同步播放 / ⇄ 循環此句
+   放在 table-toolbar 裡，是全局 ON/OFF 狀態
+*/
+.mode-toggle {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px; border-radius: 7px; font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: all .15s; user-select: none; border: 1px solid #3f3f46;
+  background: transparent; color: #71717a;
+}
+/* OFF 狀態：灰色邊框 */
+.mode-toggle:hover { border-color: #52525b; color: #a1a1aa; }
+
+/* ▶ 同步播放 ON */
+.mode-toggle.sync-on {
+  border-color: rgba(124,58,237,.5);
+  background: rgba(124,58,237,.12);
+  color: #a78bfa;
+}
+/* ⇄ 循環 ON */
+.mode-toggle.loop-on {
+  border-color: rgba(74,222,128,.4);
+  background: rgba(74,222,128,.08);
+  color: #4ade80;
+}
+@keyframes breathe { 0%,100%{opacity:.7} 50%{opacity:1} }
+.mode-toggle.loop-on { animation: breathe 1.6s ease-in-out infinite; }
+
+/* ── toggle dot indicator ── */
+.toggle-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #3f3f46; flex-shrink: 0; transition: background .15s;
+}
+.sync-on .toggle-dot { background: #a78bfa; box-shadow: 0 0 5px rgba(167,139,250,.6); }
+.loop-on .toggle-dot { background: #4ade80; box-shadow: 0 0 5px rgba(74,222,128,.6); }
+
+/* ══ EDITOR SHELL ══ */
+.editor-shell {
+  background: #09090b; border: 1px solid #27272a; border-radius: 12px;
+  overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 8px 48px rgba(0,0,0,.8);
+}
+
+/* topbar */
+.topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 20px; background: #18181b;
+  border-bottom: 1px solid #27272a; flex-shrink: 0;
+}
+.topbar-sep { font-size: 14px; color: #3f3f46; }
+.topbar-label { font-size: 12px; color: #71717a; font-weight: 500; }
+.topbar-video { flex: 1; min-width: 0; margin-left: 6px; }
+.topbar-video-hint { font-size: 10px; color: #3f3f46; margin-bottom: 1px; }
+.topbar-video-title { font-size: 12px; color: #a1a1aa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yt-status { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+.yt-status.on  { background: rgba(74,222,128,.08); border: 1px solid rgba(74,222,128,.2); color: #4ade80; }
+.yt-status.on::before  { content:''; width:6px; height:6px; border-radius:50%; background:#4ade80; box-shadow:0 0 5px #4ade80; }
+.yt-status.off { background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.2); color: #f87171; }
+.yt-status.off::before { content:''; width:6px; height:6px; border-radius:50%; background:#52525b; }
+
+/* meta */
+.editor-meta {
+  display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+  padding: 10px 20px; background: #111113;
+  border-bottom: 1px solid #27272a; flex-shrink: 0;
+}
+.meta-field { display: flex; flex-direction: column; gap: 4px; }
+.meta-field label { font-size: 10px; color: #52525b; font-weight: 600; letter-spacing:.05em; text-transform:uppercase; }
+.meta-input { background: #18181b; border: 1px solid #3f3f46; border-radius: 6px; color: #fafafa; font-size: 12px; padding: 6px 10px; }
+.meta-input.w-sm { width: 140px; }
+.meta-input.w-md { width: 220px; }
+.meta-badge { margin-left:auto; padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 600; background: rgba(124,58,237,.12); border: 1px solid rgba(124,58,237,.2); color: #a78bfa; white-space: nowrap; align-self: center; }
+
+/* table pane */
+.table-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── table toolbar（放 toggle 的地方）── */
+.table-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; background: #111113;
+  border-bottom: 1px solid #1c1c1e; flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.tt-divider { width: 1px; height: 18px; background: #27272a; margin: 0 2px; }
+.tt-search { background: #18181b; border: 1px solid #27272a; border-radius: 6px; color: #a1a1aa; font-size: 11px; padding: 5px 10px; width: 140px; }
+.tt-count { font-size: 11px; color: #3f3f46; margin-left: auto; }
+
+/* ── table ── */
+.table-wrap { flex: 1; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: #0f0f11; text-align: left;
+  font-size: 10px; font-weight: 600; color: #52525b;
+  letter-spacing:.06em; text-transform:uppercase;
+  padding: 8px 14px; border-bottom: 1px solid #27272a; white-space: nowrap;
+}
+th.th-num  { width: 36px; }
+th.th-time { width: 120px; }
+th.th-act  { width: 54px; }
+
+tbody tr { border-bottom: 1px solid #1a1a1c; transition: background .08s; cursor: pointer; }
+tbody tr:hover:not(.row-focus) { background: #0e0e10; }
+
+/* ── FOCUS 狀態：使用者點擊選中這列進行編輯 ── */
+tbody tr.row-focus { background: #1a1726; outline: none; }
+tbody tr.row-focus td.td-num { color: #a78bfa; }
+
+/* focus + 同步播放 ON：左側出現紫色 accent bar */
+tbody tr.row-focus.sync-active {
+  border-left: 3px solid #7c3aed;
+}
+tbody tr.row-focus.sync-active td:first-child { padding-left: 11px; }
+
+/* focus + 循環 ON：左側出現綠色 accent bar + 底色帶綠 */
+tbody tr.row-focus.loop-active {
+  border-left: 3px solid #4ade80;
+  background: #0f1a14;
+}
+tbody tr.row-focus.loop-active td.td-num { color: #4ade80; }
+
+/* focus + 兩者都 ON */
+tbody tr.row-focus.sync-active.loop-active {
+  border-left: 3px solid #4ade80;
+  background: #0f1a14;
+}
+
+tbody td { padding: 8px 14px; vertical-align: middle; }
+.td-num { font-size: 10px; color: #3f3f46; font-family: monospace; text-align: center; }
+.td-time-val { display: block; font-size: 10px; font-family: monospace; color: #52525b; line-height: 1.9; }
+.td-text-main { font-size: 12px; color: #fafafa; line-height: 1.5; }
+.td-text-sec  { font-size: 11px; color: #71717a; line-height: 1.5; }
+.cell-edit {
+  background: #18181b; border: 1px solid #7c3aed; border-radius: 4px;
+  padding: 5px 9px; font-size: 12px; color: #fafafa; width: 100%;
+}
+.cell-edit-sec {
+  background: #18181b; border: 1px solid #3f3f46; border-radius: 4px;
+  padding: 5px 9px; font-size: 11px; color: #a1a1aa; width: 100%; margin-top: 4px;
+}
+
+/* 列右側操作：只剩 + 新增 和 × 刪除 */
+.row-actions { display: flex; gap: 3px; opacity: 0; }
+tbody tr:hover .row-actions,
+tbody tr.row-focus .row-actions { opacity: 1; }
+.ra-btn {
+  width: 24px; height: 24px; border-radius: 4px;
+  border: 1px solid #27272a; background: #18181b;
+  color: #71717a; font-size: 12px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all .12s;
+}
+.ra-btn.add:hover { border-color: #52525b; color: #e4e4e7; }
+.ra-btn.del:hover { border-color: #ef4444; color: #ef4444; }
+
+/* ── 目前 focus 狀態列（toolbar 右側小提示）── */
+.focus-indicator {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; color: #52525b; font-weight: 500;
+  padding: 3px 8px; border-radius: 5px;
+  background: #18181b; border: 1px solid #27272a;
+}
+.focus-indicator.with-sync { border-color: rgba(124,58,237,.3); color: #a78bfa; }
+.focus-indicator.with-loop { border-color: rgba(74,222,128,.3); color: #4ade80; animation: breathe 1.6s ease-in-out infinite; }
+.focus-dot { width: 6px; height: 6px; border-radius: 50%; background: #52525b; }
+.focus-dot.purple { background: #a78bfa; box-shadow: 0 0 4px rgba(167,139,250,.5); }
+.focus-dot.green  { background: #4ade80; box-shadow: 0 0 4px rgba(74,222,128,.5); animation: breathe 1.6s ease-in-out infinite; }
+
+/* footer */
+.editor-footer {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 20px; background: #18181b;
+  border-top: 1px solid #27272a; flex-shrink: 0; flex-wrap: wrap;
+}
+.footer-right { display: flex; gap: 6px; margin-left: auto; }
+
+/* loop 狀態條 */
+.loop-bar {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 4px 12px; border-radius: 7px; font-size: 11px;
+  background: rgba(74,222,128,.06); border: 1px solid rgba(74,222,128,.18); color: #4ade80;
+}
+.loop-bar-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 6px #4ade80; animation: breathe 1.4s ease-in-out infinite; }
+.loop-bar-txt { color: #a1a1aa; }
+.loop-bar-stop { width: 18px; height: 18px; border-radius: 4px; background: rgba(239,68,68,.15); border: 1px solid rgba(239,68,68,.25); color: #f87171; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-left: 4px; }
+
+/* no-yt banner */
+.no-yt-banner {
+  background: rgba(239,68,68,.05); border-bottom: 1px solid rgba(239,68,68,.12);
+  padding: 8px 20px; display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: #71717a; flex-shrink: 0;
+}
+.no-yt-banner a { color: #a78bfa; cursor: pointer; text-decoration: underline; }
+.mode-toggle.disabled { opacity: .35; cursor: not-allowed; animation: none; }
+
+/* ── 說明氣泡 ── */
+.callout {
+  background: #18181b; border: 1px solid #3f3f46; border-radius: 8px;
+  padding: 10px 14px; font-size: 11px; color: #a1a1aa; line-height: 1.7; max-width: 280px;
+}
+.callout::before { content: attr(data-label); display: block; font-size: 9px; font-weight: 700; color: #52525b; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 5px; }
+.callout.c-purple { border-color: rgba(124,58,237,.35); }
+.callout.c-green  { border-color: rgba(74,222,128,.3); }
+.callout.c-both   { border-color: rgba(74,222,128,.3); background: #0f1a14; }
+.tag { display: inline; padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+.tag-p { background: rgba(124,58,237,.15); color: #a78bfa; border: 1px solid rgba(124,58,237,.2); }
+.tag-g { background: rgba(74,222,128,.1); color: #4ade80; border: 1px solid rgba(74,222,128,.2); }
+
+/* sidebar */
+.sidebar { width: 300px; background: #09090b; border: 1px solid #27272a; border-radius: 12px; overflow: hidden; }
+.sb-header { display: flex; align-items: center; gap: 8px; padding: 6px 14px; background: #18181b; border-bottom: 1px solid #27272a; min-height: 44px; }
+.sb-tabs { display: flex; border-bottom: 1px solid #27272a; background: #18181b; }
+.sb-tab { flex: 1; padding: 8px 0; font-size: 12px; font-weight: 500; color: #71717a; text-align: center; border-bottom: 2px solid transparent; }
+.sb-tab.active { color: #a78bfa; border-bottom-color: #7c3aed; }
+.sb-body { padding: 10px 12px; }
+.sb-select { width: 100%; background: #18181b; border: 1px solid #27272a; border-radius: 6px; color: #a1a1aa; font-size: 11px; padding: 5px 8px; margin-bottom: 6px; }
+.sb-custom-btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 6px; border: 1px solid #3f3f46; background: #18181b; color: #a1a1aa; font-size: 11px; font-weight: 500; cursor: pointer; margin-bottom: 6px; }
+.sb-community { display: flex; align-items: center; gap: 6px; width: 100%; padding: 7px 10px; border-radius: 8px; font-size: 11px; font-weight: 500; }
+.sb-community.off { border: 1px dashed #3f3f46; color: #52525b; }
+.sb-community.on  { border: 1px solid #4f46e5; background: #1e1b2e; color: #a78bfa; }
+.sb-badge { margin-left: auto; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; }
+.sb-badge.off { background: #27272a; color: #71717a; }
+.sb-badge.on  { background: #7c3aed; color: #fff; }
+.divider { border: none; border-top: 1px solid #1c1c1e; margin: 8px 0; }
+.sb-sub { display: flex; gap: 8px; padding: 5px 8px; border-radius: 6px; background: #18181b; border: 1px solid #27272a; margin-bottom: 4px; }
+.sb-sub.active { border-color: #7c3aed; background: #1e1b2e; }
+.sb-time { font-size: 10px; color: #52525b; white-space: nowrap; padding-top: 2px; }
+.sb-txt { font-size: 11px; color: #e4e4e7; line-height: 1.4; }
+.sb-sec { font-size: 10px; color: #71717a; }
+.cl-wrap { margin-top: 8px; border: 1px solid #27272a; border-radius: 8px; overflow: hidden; }
+.cl-head { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: #18181b; border-bottom: 1px solid #27272a; font-size: 11px; color: #71717a; }
+.cl-head span { font-weight: 600; color: #a1a1aa; }
+.cl-item { padding: 8px 10px; border-bottom: 1px solid #1c1c1e; }
+.cl-item:last-child { border-bottom: none; }
+.cl-row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.cl-name { font-size: 12px; font-weight: 600; color: #fafafa; }
+.cl-load { font-size: 10px; font-weight: 600; color: #a78bfa; background: rgba(124,58,237,.12); border: 1px solid rgba(124,58,237,.25); border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+.cl-meta { font-size: 10px; color: #52525b; }
+</style>
+</head>
+<body>
+
+<h1>自定義字幕 — UI 設計稿 v4</h1>
+<p class="page-sub">▶ 同步播放 · ⇄ 循環此句 → 全局 Toggle，作用於當前 Focus 列</p>
+
+<!-- ══════════════════════════════════════════════════════
+     A. Sidebar 入口
+     ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>A — Sidebar 入口</h2>
+  <div class="flex-row">
+    <div>
+      <div class="row-label">無社群字幕</div>
+      <div class="sidebar">
+        <div class="sb-header">
+          <div class="logo" style="flex:1"><span class="logo-zh">學習</span><span class="logo-bar">Bar</span></div>
+          <div style="display:flex;gap:6px">
+            <div style="width:26px;height:26px;border:1px solid #27272a;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#71717a;font-size:13px">↺</div>
+            <div style="width:26px;height:26px;border:1px solid #3f3f46;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#a78bfa;font-size:11px;font-weight:700">G</div>
+          </div>
+        </div>
+        <div class="sb-tabs"><div class="sb-tab active">字幕</div><div class="sb-tab">生字本</div><div class="sb-tab">設定</div></div>
+        <div class="sb-body">
+          <div class="sb-select">中文（繁體）▾</div>
+          <div class="sb-select">（副字幕）▾</div>
+          <button class="sb-custom-btn">✏ 自定義字幕</button>
+          <div class="sb-community off"><span>👥 社群字幕</span><span class="sb-badge off">0</span></div>
+          <div class="divider"></div>
+          <div class="sb-sub"><span class="sb-time">0:04</span><div><div class="sb-txt">We're no strangers to love</div></div></div>
+          <div class="sb-sub active"><span class="sb-time">0:08</span><div><div class="sb-txt">You know the rules and so do I</div><div class="sb-sec">你知道規則，我也知道</div></div></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="row-label">社群字幕清單展開</div>
+      <div class="sidebar">
+        <div class="sb-header">
+          <div class="logo" style="flex:1"><span class="logo-zh">學習</span><span class="logo-bar">Bar</span></div>
+          <div style="display:flex;gap:6px">
+            <div style="width:26px;height:26px;border:1px solid #27272a;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#71717a;font-size:13px">↺</div>
+            <div style="width:26px;height:26px;border:1px solid #3f3f46;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#a78bfa;font-size:11px;font-weight:700">G</div>
+          </div>
+        </div>
+        <div class="sb-tabs"><div class="sb-tab active">字幕</div><div class="sb-tab">生字本</div><div class="sb-tab">設定</div></div>
+        <div class="sb-body">
+          <div class="sb-select">中文（繁體）▾</div>
+          <div class="sb-select">（副字幕）▾</div>
+          <button class="sb-custom-btn">✏ 自定義字幕</button>
+          <div class="sb-community on"><span>👥 社群字幕</span><span class="sb-badge on">3</span></div>
+          <div class="cl-wrap">
+            <div class="cl-head"><span>選擇社群字幕</span><span style="cursor:pointer;color:#52525b">✕</span></div>
+            <div class="cl-item"><div class="cl-row1"><span class="cl-name">中文精校版</span><button class="cl-load">載入</button></div><div class="cl-meta">by <span style="color:#71717a">郭峻瑋</span> · 3 天前</div></div>
+            <div class="cl-item"><div class="cl-row1"><span class="cl-name">注音輔助版</span><button class="cl-load">載入</button></div><div class="cl-meta">by <span style="color:#71717a">yuki_tw</span> · 1 週前</div></div>
+            <div class="cl-item"><div class="cl-row1"><span class="cl-name">雙語對照（英中）</span><button class="cl-load">載入</button></div><div class="cl-meta">by <span style="color:#71717a">Allen_Chen</span> · 2 週前</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     B. Toggle 設計解析（放大說明）
+     ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>B — 全局 Toggle 解析</h2>
+
+  <!-- Toolbar 三種狀態 -->
+  <div style="display:flex;flex-direction:column;gap:24px;max-width:900px">
+
+    <!-- 狀態 1：兩個都 OFF -->
+    <div>
+      <div class="row-label" style="margin-bottom:6px">狀態 1 — 兩個都關閉</div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#111113;border:1px solid #1c1c1e;border-radius:8px">
+        <input style="background:#18181b;border:1px solid #27272a;border-radius:6px;color:#a1a1aa;font-size:11px;padding:5px 10px;width:140px" placeholder="🔍 搜尋字幕">
+        <div class="tt-divider"></div>
+        <button class="mode-toggle"><span class="toggle-dot"></span>▶ 同步播放</button>
+        <button class="mode-toggle"><span class="toggle-dot"></span>⇄ 循環此句</button>
+        <div class="tt-divider"></div>
+        <span style="font-size:10px;color:#3f3f46;margin-left:auto">第 2 / 42 行</span>
+      </div>
+      <div style="font-size:11px;color:#52525b;margin-top:6px">兩個功能皆關閉。Focus 列僅高亮，YouTube 不會自動動作。</div>
+    </div>
+
+    <!-- 狀態 2：同步播放 ON -->
+    <div>
+      <div class="row-label" style="margin-bottom:6px">狀態 2 — 同步播放 ON</div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#111113;border:1px solid #1c1c1e;border-radius:8px">
+        <input style="background:#18181b;border:1px solid #27272a;border-radius:6px;color:#a1a1aa;font-size:11px;padding:5px 10px;width:140px" placeholder="🔍 搜尋字幕">
+        <div class="tt-divider"></div>
+        <button class="mode-toggle sync-on"><span class="toggle-dot"></span>▶ 同步播放</button>
+        <button class="mode-toggle"><span class="toggle-dot"></span>⇄ 循環此句</button>
+        <div class="tt-divider"></div>
+        <!-- focus 指示 -->
+        <span class="focus-indicator with-sync"><span class="focus-dot purple"></span>第 2 列</span>
+        <span style="font-size:10px;color:#3f3f46;margin-left:auto">第 2 / 42 行</span>
+      </div>
+      <div style="font-size:11px;color:#52525b;margin-top:6px">每次 focus 換到新的一列，YouTube 自動跳轉並播放該列時間點（單次觸發，不重複）。</div>
+    </div>
+
+    <!-- 狀態 3：循環 ON -->
+    <div>
+      <div class="row-label" style="margin-bottom:6px">狀態 3 — 循環此句 ON</div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#111113;border:1px solid #1c1c1e;border-radius:8px">
+        <input style="background:#18181b;border:1px solid #27272a;border-radius:6px;color:#a1a1aa;font-size:11px;padding:5px 10px;width:140px" placeholder="🔍 搜尋字幕">
+        <div class="tt-divider"></div>
+        <button class="mode-toggle"><span class="toggle-dot"></span>▶ 同步播放</button>
+        <button class="mode-toggle loop-on"><span class="toggle-dot"></span>⇄ 循環此句</button>
+        <div class="tt-divider"></div>
+        <span class="focus-indicator with-loop"><span class="focus-dot green"></span>第 2 列 · 循環中</span>
+        <span style="font-size:10px;color:#3f3f46;margin-left:auto">第 2 / 42 行</span>
+      </div>
+      <div style="font-size:11px;color:#52525b;margin-top:6px">Focus 停在哪一列，YouTube 就持續重播那一列的聲音。切換 focus → 新的一列開始循環，前一列停止。</div>
+    </div>
+
+    <!-- 狀態 4：兩個都 ON -->
+    <div>
+      <div class="row-label" style="margin-bottom:6px">狀態 4 — 兩個都 ON（同步 + 循環）</div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#111113;border:1px solid #1c1c1e;border-radius:8px">
+        <input style="background:#18181b;border:1px solid #27272a;border-radius:6px;color:#a1a1aa;font-size:11px;padding:5px 10px;width:140px" placeholder="🔍 搜尋字幕">
+        <div class="tt-divider"></div>
+        <button class="mode-toggle sync-on"><span class="toggle-dot"></span>▶ 同步播放</button>
+        <button class="mode-toggle loop-on"><span class="toggle-dot"></span>⇄ 循環此句</button>
+        <div class="tt-divider"></div>
+        <span class="focus-indicator with-loop"><span class="focus-dot green"></span>第 2 列 · 循環中</span>
+        <span style="font-size:10px;color:#3f3f46;margin-left:auto">第 2 / 42 行</span>
+      </div>
+      <div style="font-size:11px;color:#52525b;margin-top:6px">最強學習模式：跳到這列 → 自動從時間點開始播 → 持續循環。換列時無縫切換到下一句。</div>
+    </div>
+
+  </div>
+
+  <!-- 說明欄 -->
+  <div style="display:flex;gap:16px;margin-top:24px;flex-wrap:wrap">
+    <div class="callout c-purple" data-label="▶ 同步播放 — 行為說明">
+      Focus 切換到任一列時，自動通知 YouTube 分頁跳轉到該列 startTime 並播放。<br><br>
+      <span class="tag tag-p">單次觸發</span> 不會重播，只在 focus 改變時執行一次。
+    </div>
+    <div class="callout c-green" data-label="⇄ 循環此句 — 行為說明">
+      Focus 停留在哪一列，YouTube 就持續重播 startTime → endTime。<br><br>
+      <span class="tag tag-g">切換 focus</span> → 舊列停止，新列開始循環。<br>
+      循環期間可自由編輯文字，聲音不中斷。
+    </div>
+    <div class="callout c-both" data-label="兩個都 ON — 學習模式">
+      Tab / 點擊換到新列 → 自動跳轉時間點 → 開始循環聲音。<br>
+      使用者可一邊聽 → 一邊對照 → 一邊修改字幕，全程不用碰滑鼠控制影片。
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     C. 完整 Editor — 循環模式進行中
+     ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>C — Editor 完整畫面 · 同步 + 循環都 ON · Focus 在第 2 列</h2>
+
+  <div class="editor-shell" style="max-width:980px">
+    <div class="topbar">
+      <div class="logo"><span class="logo-zh">學習</span><span class="logo-bar">Bar</span></div>
+      <span class="topbar-sep">/</span>
+      <span class="topbar-label">自定義字幕編輯器</span>
+      <div class="topbar-video">
+        <div class="topbar-video-hint">正在編輯</div>
+        <div class="topbar-video-title">Rick Astley — Never Gonna Give You Up (Official Music Video)</div>
+      </div>
+      <span class="yt-status on">YouTube 已連線</span>
+    </div>
+
+    <div class="editor-meta">
+      <div class="meta-field"><label>作者暱稱</label><input class="meta-input w-sm" value="郭峻瑋"></div>
+      <div class="meta-field"><label>字幕名稱</label><input class="meta-input w-md" value="中文精校版"></div>
+      <span class="meta-badge">📄 共 42 行字幕</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;overflow:hidden">
+      <!-- toolbar -->
+      <div class="table-toolbar">
+        <input class="tt-search" placeholder="🔍 搜尋字幕">
+        <div class="tt-divider"></div>
+        <!-- toggles -->
+        <button class="mode-toggle sync-on"><span class="toggle-dot"></span>▶ 同步播放</button>
+        <button class="mode-toggle loop-on"><span class="toggle-dot"></span>⇄ 循環此句</button>
+        <div class="tt-divider"></div>
+        <!-- 目前 focus 狀態 -->
+        <span class="focus-indicator with-loop"><span class="focus-dot green"></span>第 2 列 · 循環中</span>
+        <span class="tt-count">第 2 / 42 行</span>
+      </div>
+
+      <!-- 表格 -->
+      <div class="table-wrap" style="max-height:360px">
+        <table>
+          <thead>
+            <tr>
+              <th class="th-num">#</th>
+              <th class="th-time">時間碼</th>
+              <th>主字幕</th>
+              <th>副字幕</th>
+              <th class="th-act"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 一般列 -->
+            <tr>
+              <td class="td-num">1</td>
+              <td><span class="td-time-val">00:00:04,000</span><span class="td-time-val" style="color:#3f3f46">→ 00:00:07,500</span></td>
+              <td class="td-text-main">We're no strangers to love</td>
+              <td class="td-text-sec">我們對愛情並不陌生</td>
+              <td><div class="row-actions"><div class="ra-btn add">+</div><div class="ra-btn del">×</div></div></td>
+            </tr>
+            <!-- Focus + 同步 + 循環中 → 左側綠線，底色深綠 -->
+            <tr class="row-focus loop-active sync-active">
+              <td class="td-num">2</td>
+              <td><span class="td-time-val">00:00:08,000</span><span class="td-time-val" style="color:#3f3f46">→ 00:00:11,500</span></td>
+              <td style="padding:8px 14px">
+                <input class="cell-edit" value="You know the rules and so do I">
+              </td>
+              <td style="padding:8px 14px">
+                <input class="cell-edit-sec" value="你知道規則，我也知道">
+              </td>
+              <td><div class="row-actions" style="opacity:1"><div class="ra-btn add">+</div><div class="ra-btn del">×</div></div></td>
+            </tr>
+            <!-- 一般列 -->
+            <tr>
+              <td class="td-num">3</td>
+              <td><span class="td-time-val">00:00:13,000</span><span class="td-time-val" style="color:#3f3f46">→ 00:00:16,500</span></td>
+              <td class="td-text-main">A full commitment's what I'm thinking of</td>
+              <td class="td-text-sec">我心裡想的是全心全意的承諾</td>
+              <td><div class="row-actions"><div class="ra-btn add">+</div><div class="ra-btn del">×</div></div></td>
+            </tr>
+            <tr>
+              <td class="td-num">4</td>
+              <td><span class="td-time-val">00:00:17,500</span><span class="td-time-val" style="color:#3f3f46">→ 00:00:21,000</span></td>
+              <td class="td-text-main">You wouldn't get this from any other guy</td>
+              <td class="td-text-sec"></td>
+              <td><div class="row-actions"><div class="ra-btn add">+</div><div class="ra-btn del">×</div></div></td>
+            </tr>
+            <tr>
+              <td class="td-num">5</td>
+              <td><span class="td-time-val">00:00:22,000</span><span class="td-time-val" style="color:#3f3f46">→ 00:00:25,000</span></td>
+              <td class="td-text-main">I just wanna tell you how I'm feeling</td>
+              <td class="td-text-sec">我只想告訴你我的感受</td>
+              <td><div class="row-actions"><div class="ra-btn add">+</div><div class="ra-btn del">×</div></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- footer -->
+      <div class="editor-footer">
+        <div class="loop-bar">
+          <div class="loop-bar-dot"></div>
+          <span>循環中</span>
+          <span class="loop-bar-txt">「You know the rules and so do I」· 00:08 → 00:11</span>
+          <div class="loop-bar-stop">■</div>
+        </div>
+        <div class="footer-right">
+          <button class="btn btn-ghost btn-sm">+ 新增行</button>
+          <button class="btn btn-ghost btn-sm">↓ 匯出 .srt</button>
+          <button class="btn btn-purple btn-sm">↑ 分享至社群</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="annotation">
+    Focus 列左側以顏色邊線區分模式：<span style="color:#a78bfa">紫線 = 同步播放 ON</span> / <span style="color:#4ade80">綠線 = 循環 ON</span> / 兩者都 ON 時顯示綠線（循環優先）。<br>
+    Toolbar 中間的 focus 指示器即時顯示當前操作的列與模式狀態。<br>
+    操作按鈕每列只剩 + 新增行 和 × 刪除，不再有播放控制（播放由全局 toggle 決定）。<br>
+    Footer 循環狀態列顯示循環內容預覽與時間範圍，按 ■ 可立即關閉循環（同時關閉 toggle）。
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     D. YT 連線斷開 — Toggle 降級
+     ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>D — YouTube 分頁已關閉 · Toggle Disabled</h2>
+
+  <div class="editor-shell" style="max-width:980px">
+    <div class="topbar">
+      <div class="logo"><span class="logo-zh">學習</span><span class="logo-bar">Bar</span></div>
+      <span class="topbar-sep">/</span>
+      <span class="topbar-label">自定義字幕編輯器</span>
+      <div class="topbar-video">
+        <div class="topbar-video-hint">正在編輯</div>
+        <div class="topbar-video-title">Rick Astley — Never Gonna Give You Up (Official Music Video)</div>
+      </div>
+      <span class="yt-status off">YouTube 分頁已關閉</span>
+    </div>
+    <div class="no-yt-banner">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#71717a" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3m0 2.5v.5"/></svg>
+      ▶ 同步播放 和 ⇄ 循環此句 需要 YouTube 分頁保持開啟。
+      <a>重新開啟 YouTube</a>
+    </div>
+    <div class="table-toolbar">
+      <input class="tt-search" placeholder="🔍 搜尋字幕">
+      <div class="tt-divider"></div>
+      <button class="mode-toggle disabled" title="YouTube 分頁已關閉"><span class="toggle-dot"></span>▶ 同步播放</button>
+      <button class="mode-toggle disabled" title="YouTube 分頁已關閉"><span class="toggle-dot"></span>⇄ 循環此句</button>
+      <span class="tt-count" style="margin-left:auto">第 1 / 42 行</span>
+    </div>
+    <div style="padding:20px;text-align:center;font-size:11px;color:#3f3f46;border-top:1px solid #1c1c1e">
+      字幕編輯、新增行、刪除行、匯出、分享功能不受影響。
+    </div>
+  </div>
+
+  <p class="annotation">
+    YouTube 分頁關閉後，兩個 toggle 變為 35% 透明 disabled，hover 顯示 tooltip。<br>
+    Topbar 連線狀態指示燈變紅，橫幅提示並提供快速連結。
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     E. 分享 Dialog
+     ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>E — 分享至社群 · 確認 Dialog</h2>
+  <div style="width:360px;background:#18181b;border:1px solid #27272a;border-radius:12px;padding:22px;box-shadow:0 12px 40px rgba(0,0,0,.7)">
+    <div style="font-size:14px;font-weight:700;color:#fafafa;margin-bottom:8px">分享字幕至社群</div>
+    <div style="font-size:12px;color:#71717a;margin-bottom:10px;line-height:1.7">確定要將 <span style="color:#a78bfa;font-weight:600">「中文精校版」</span> 分享至社群？</div>
+    <div style="background:#111113;border:1px solid #27272a;border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:11px;line-height:1.9;color:#71717a">
+      <div><span style="color:#52525b">作者：</span><span style="color:#a1a1aa">郭峻瑋</span></div>
+      <div><span style="color:#52525b">影片：</span><span style="color:#a1a1aa">Never Gonna Give You Up</span></div>
+      <div><span style="color:#52525b">字幕行數：</span><span style="color:#a1a1aa">42 行</span></div>
+      <div style="margin-top:5px;color:#3f3f46;font-size:10px">其他使用者可在相同影片下看到並載入此字幕。</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost btn-sm">取消</button>
+      <button class="btn btn-primary btn-sm">確定分享</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -158,7 +158,30 @@
 
 ---
 
-### 模組 9：自定義字幕
+### 模組 9：字幕模式（Subtitle Mode）
+
+測試需要：已還原本地字幕或已載入 YouTube 字幕
+
+| # | 情境 | 操作 | 預期結果 |
+|---|------|------|---------|
+| 9-1 | 進入字幕模式 | 點「播放模式」下拉選擇「字幕模式」 | 全螢幕字幕模式 overlay 出現，影片顯示在左上角視窗 |
+| 9-2 | 播放 / 暫停 | 點擊 ▶ 按鈕 | 影片播放；再點變 ⏸ 並暫停 |
+| 9-3 | 搜尋過濾 | 輸入英文字頭（如 "ne"） | 只顯示含以 "ne" 開頭單字的句子，右側顯示 N/M 句 |
+| 9-4 | 單字點擊 | 點字幕中的英文單字 | 字典 Popup 出現，位置在單字上方，不遮擋該單字 |
+| 9-5 | 循環按鈕 | 點任一句的 ⇄ 按鈕 | 按鈕變紫色 active，影片跳到該句並循環 |
+| 9-6 | 切換循環句 | 已有句在循環時，點另一句的 ⇄ | 前一句按鈕立即熄滅，新句按鈕立即亮起（不需等待）|
+| 9-7 | 取消循環 | 再次點 active 的 ⇄ | 按鈕熄滅，影片繼續正常播放 |
+| 9-8 | 時間戳跳轉 | 點句子左側的時間戳 | 影片跳到該時間點 |
+| 9-9 | 背景點擊跳轉 | 點句子文字區（非單字、非按鈕） | 影片跳到該時間點 |
+| 9-10 | 手動捲動不被鎖定 | 播放中向上捲字幕列表 | 可自由捲動，不會被自動捲動強制拉回當前句 |
+| 9-11 | 右鍵存字 | 對字幕中英文單字按右鍵 | Toast 顯示「已加入生字本」（⚠️ 受限：需手動測試，Playwright 無法可靠觸發） |
+| 9-12 | 退出字幕模式 | 點右上角 ✕ | 回到正常模式，影片回到 YouTube player，F12 Console 無錯誤 |
+
+**自動化腳本**：`node tests/qa-subtitle-mode.mjs`（T1–T21，20 項可自動化）
+
+---
+
+### 模組 10：自定義字幕
 
 | # | 情境 | 操作 | 預期結果 |
 |---|------|------|---------|
@@ -272,6 +295,7 @@ await client.send('Runtime.evaluate', {
 
 | 腳本 | 說明 | 執行方式 |
 |------|------|---------|
+| `qa-subtitle-mode.mjs` | **字幕模式完整測試**（T1–T21，20 項自動化）：本地字幕還原、切換模式、搜尋、循環、單字 span、時間跳轉、退出清理 | `node tests/qa-subtitle-mode.mjs` |
 | `test-storage-persist-v2.mjs` | 驗證 `chrome.storage.local` 讀寫與刷新持久化，並確認 `_restoreSavedSubtitle` 顯示「已還原」 | `node tests/test-storage-persist-v2.mjs` |
 | `test-lang-behavior.mjs` | 驗證字幕語言偏好選擇行為 | `node tests/test-lang-behavior.mjs` |
 | `test-nav-btn-real.mjs` | 驗證 Overlay 上一句/下一句按鈕 | `node tests/test-nav-btn-real.mjs` |
@@ -298,9 +322,11 @@ async function pollStatusText(page, targetSubstr, maxMs) { ... }
 | Sidebar DOM 狀態確認 | ✅ 可自動化 | `page.evaluate` 讀取 `#yt-sub-status` |
 | 刷新後字幕還原 | ✅ 可自動化 | `page.reload()` + 輪詢狀態文字 |
 | 字幕列表 active 高亮 | ✅ 可自動化 | 等 video play 後查 `.yt-sub-item.active` |
+| 字幕模式功能（搜尋/循環/跳轉/退出）| ✅ 可自動化 | 用本地字幕 + `qa-subtitle-mode.mjs` |
+| 本地字幕載入測試 | ✅ 可自動化 | CDP 寫 `editedSubtitles_<videoId>`，繞過 pot token 限制 |
 | Google OAuth 登入 | ❌ 手動 | 需互動式 browser |
-| 右鍵選單儲存單字 | ⚠️ 受限 | YouTube 可能攔截 contextmenu |
-| YouTube 字幕 HTTP 回傳 | ⚠️ 受限 | 需要 pot token，headless 下可能失敗 |
+| 右鍵選單儲存單字 | ⚠️ 受限 | YouTube 可能攔截 contextmenu；代碼已涵蓋 #yt-sub-subtitle-mode |
+| YouTube 字幕 HTTP 回傳 | ⚠️ 受限 | 需要 pot token，改用本地字幕策略繞過 |
 
 ---
 

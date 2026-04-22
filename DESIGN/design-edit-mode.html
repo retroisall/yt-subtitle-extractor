@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440">
+<title>編輯字幕模式 — Design Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #09090b;
+    color: #fafafa;
+    font-family: system-ui, -apple-system, sans-serif;
+    width: 1440px;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ─── Full-screen Overlay ─── */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(9, 9, 11, 0.92);
+    display: flex;
+    flex-direction: column;
+    z-index: 9999;
+  }
+
+  /* ─── Overlay Header ─── */
+  .overlay-header {
+    height: 52px;
+    background: #18181b;
+    border-bottom: 1px solid #27272a;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fafafa;
+  }
+  .header-title-icon {
+    width: 24px;
+    height: 24px;
+    background: rgba(124,58,237,0.2);
+    border: 1px solid rgba(124,58,237,0.4);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+  }
+  .header-subtitle {
+    font-size: 12px;
+    color: #71717a;
+    margin-left: 4px;
+  }
+  .header-spacer { flex: 1; }
+  .header-unsaved {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #f59e0b;
+    padding: 3px 8px;
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 6px;
+  }
+  .header-unsaved::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: #f59e0b;
+    border-radius: 50%;
+  }
+
+  /* ─── Main Split ─── */
+  .split-container {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ─── Left: Video ─── */
+  .video-panel {
+    width: 40%;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #27272a;
+    background: #09090b;
+  }
+
+  .video-placeholder {
+    flex: 1;
+    background: #0d0d0f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .video-placeholder-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    opacity: 0.4;
+  }
+  .video-icon {
+    width: 72px;
+    height: 50px;
+    border: 2px solid #3f3f46;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+  .video-placeholder-label {
+    font-size: 13px;
+    color: #52525b;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* Simulated video thumbnail overlay */
+  .video-placeholder::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #0a0a1a 0%, #0d1a2e 40%, #0a1520 100%);
+  }
+  .video-placeholder::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 30% 40%, rgba(124,58,237,0.05) 0%, transparent 60%),
+      radial-gradient(ellipse at 70% 60%, rgba(59,130,246,0.04) 0%, transparent 60%);
+  }
+  .video-overlay-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .play-circle {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(124,58,237,0.25);
+    border: 2px solid rgba(124,58,237,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .play-circle::after {
+    content: '';
+    border-left: 22px solid rgba(255,255,255,0.8);
+    border-top: 13px solid transparent;
+    border-bottom: 13px solid transparent;
+    margin-left: 4px;
+  }
+  .video-current-sub {
+    background: rgba(0,0,0,0.7);
+    color: #fafafa;
+    font-size: 15px;
+    padding: 8px 20px;
+    border-radius: 8px;
+    max-width: 460px;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* ─── Video Controls ─── */
+  .video-controls {
+    background: #18181b;
+    border-top: 1px solid #27272a;
+    padding: 12px 16px;
+    flex-shrink: 0;
+  }
+
+  .scrubber-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .v-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: #27272a;
+    border: none;
+    color: #fafafa;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .v-btn.primary { background: #7c3aed; }
+  .scrubber {
+    flex: 1;
+    height: 4px;
+    background: #3f3f46;
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+  }
+  .scrubber-fill {
+    width: 35%;
+    height: 100%;
+    background: linear-gradient(90deg, #7c3aed, #a855f7);
+    border-radius: 2px;
+  }
+  .scrubber-thumb {
+    position: absolute;
+    top: 50%;
+    left: 35%;
+    transform: translate(-50%, -50%);
+    width: 12px;
+    height: 12px;
+    background: #a855f7;
+    border: 2px solid #09090b;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(168,85,247,0.3);
+  }
+  .time-display {
+    font-size: 12px;
+    color: #a1a1aa;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .toggles-row {
+    display: flex;
+    gap: 16px;
+  }
+  .toggle-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .mini-toggle {
+    width: 32px;
+    height: 18px;
+    background: #7c3aed;
+    border-radius: 9px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .mini-toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-radius: 50%;
+  }
+  .mini-toggle.off { background: #3f3f46; }
+  .mini-toggle.off::after { right: auto; left: 2px; }
+  .toggle-label {
+    font-size: 12px;
+    color: #a1a1aa;
+  }
+
+  /* ─── Right: Edit Panel ─── */
+  .edit-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: #09090b;
+  }
+
+  /* Toolbar */
+  .edit-toolbar {
+    height: 48px;
+    background: #18181b;
+    border-bottom: 1px solid #27272a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+    flex-shrink: 0;
+  }
+  .tool-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 7px;
+    border: 1px solid #27272a;
+    background: transparent;
+    color: #a1a1aa;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .tool-btn:hover { border-color: #3f3f46; color: #fafafa; }
+  .tool-btn.primary {
+    background: rgba(124,58,237,0.15);
+    border-color: rgba(124,58,237,0.4);
+    color: #a855f7;
+  }
+  .tool-btn.primary:hover { background: rgba(124,58,237,0.25); }
+  .tool-btn.danger:hover { border-color: rgba(239,68,68,0.5); color: #f87171; }
+  .edit-toolbar-spacer { flex: 1; }
+  .row-count-badge {
+    font-size: 11px;
+    color: #52525b;
+    padding: 0 8px;
+  }
+  .back-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 7px;
+    border: 1px solid #27272a;
+    background: transparent;
+    color: #a1a1aa;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .back-btn:hover { border-color: #3f3f46; color: #fafafa; }
+
+  /* Edit List */
+  .edit-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .edit-list::-webkit-scrollbar { width: 4px; }
+  .edit-list::-webkit-scrollbar-track { background: transparent; }
+  .edit-list::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 2px; }
+
+  .edit-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    border-left: 3px solid transparent;
+    border-bottom: 1px solid #18181b;
+    padding: 8px 16px 8px 13px;
+    transition: background 0.15s, border-left-color 0.15s;
+    position: relative;
+  }
+  .edit-row:hover { background: rgba(255,255,255,0.02); }
+  .edit-row.focused {
+    border-left-color: #7c3aed;
+    background: rgba(124,58,237,0.06);
+  }
+
+  .row-num {
+    width: 24px;
+    font-size: 11px;
+    color: #3f3f46;
+    text-align: right;
+    padding-top: 10px;
+    padding-right: 10px;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .edit-row.focused .row-num { color: #7c3aed; }
+
+  /* Timestamp Block */
+  .ts-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 148px;
+    flex-shrink: 0;
+    margin-right: 12px;
+  }
+  .ts-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .ts-label {
+    font-size: 9px;
+    color: #52525b;
+    text-transform: uppercase;
+    width: 28px;
+    flex-shrink: 0;
+    letter-spacing: 0.5px;
+  }
+  .ts-input {
+    flex: 1;
+    background: #1c1c1f;
+    border: 1px solid #27272a;
+    border-radius: 5px;
+    color: #d4d4d8;
+    font-size: 11px;
+    padding: 4px 6px;
+    font-variant-numeric: tabular-nums;
+    font-family: 'Courier New', monospace;
+    min-width: 0;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .ts-input:focus { border-color: #7c3aed; color: #fafafa; }
+  .ts-grab-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    background: #27272a;
+    border: none;
+    color: #71717a;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    title: "設為當前播放時間";
+    transition: background 0.15s, color 0.15s;
+  }
+  .ts-grab-btn:hover { background: rgba(124,58,237,0.3); color: #a855f7; }
+  .edit-row.focused .ts-grab-btn { color: #7c3aed; }
+
+  .ts-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 0;
+  }
+  .ts-arrow-icon {
+    width: 1px;
+    height: 10px;
+    background: #3f3f46;
+    margin: 0 auto;
+    position: relative;
+  }
+  .ts-arrow-icon::after {
+    content: '↓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 8px;
+    color: #3f3f46;
+  }
+
+  /* Sub inputs */
+  .sub-inputs {
+    flex: 1;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+  }
+  .sub-input-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+  .sub-input-label {
+    font-size: 9px;
+    color: #52525b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 3px;
+  }
+  .sub-input {
+    width: 100%;
+    background: #1c1c1f;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    color: #e4e4e7;
+    font-size: 13px;
+    padding: 7px 10px;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+    font-family: system-ui, sans-serif;
+  }
+  .sub-input:focus { border-color: #7c3aed; background: #1a1a22; color: #fafafa; }
+  .sub-input.secondary {
+    color: #a1a1aa;
+    background: #18181b;
+    font-size: 12px;
+  }
+  .sub-input.secondary:focus { color: #d4d4d8; }
+
+  .delete-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: transparent;
+    border: 1px solid #27272a;
+    color: #52525b;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    align-self: center;
+    margin-top: 10px;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .delete-btn:hover {
+    background: rgba(239,68,68,0.1);
+    border-color: rgba(239,68,68,0.4);
+    color: #f87171;
+  }
+
+  /* Add row button */
+  .add-row-wrap {
+    padding: 12px 16px;
+    border-top: 1px solid #27272a;
+    flex-shrink: 0;
+  }
+  .add-row-btn {
+    width: 100%;
+    padding: 10px;
+    background: rgba(124,58,237,0.08);
+    border: 1px dashed rgba(124,58,237,0.3);
+    border-radius: 8px;
+    color: #7c3aed;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .add-row-btn:hover {
+    background: rgba(124,58,237,0.15);
+    border-color: rgba(124,58,237,0.5);
+    color: #a855f7;
+  }
+</style>
+</head>
+<body>
+
+<div class="overlay">
+
+  <!-- Overlay Header -->
+  <div class="overlay-header">
+    <div class="header-title">
+      <div class="header-title-icon">✏️</div>
+      字幕編輯模式
+      <span class="header-subtitle">How I Learned Japanese to N2 in 18 Months</span>
+    </div>
+    <div class="header-spacer"></div>
+    <div class="header-unsaved">未儲存變更</div>
+  </div>
+
+  <!-- Split Container -->
+  <div class="split-container">
+
+    <!-- Left: Video Panel -->
+    <div class="video-panel">
+      <div class="video-placeholder">
+        <div class="video-overlay-content">
+          <div class="play-circle"></div>
+          <div class="video-current-sub">
+            N2に合格したとき、正直まだ話せないと感じていました。
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="video-controls">
+        <div class="scrubber-row">
+          <button class="v-btn">⏮</button>
+          <button class="v-btn primary">▶</button>
+          <button class="v-btn">⏭</button>
+          <div class="scrubber">
+            <div class="scrubber-fill"></div>
+            <div class="scrubber-thumb"></div>
+          </div>
+          <span class="time-display">08:32.440 / 22:15.000</span>
+        </div>
+        <div class="toggles-row">
+          <div class="toggle-item">
+            <div class="mini-toggle"></div>
+            <span class="toggle-label">同步播放</span>
+          </div>
+          <div class="toggle-item">
+            <div class="mini-toggle off"></div>
+            <span class="toggle-label">循環此句</span>
+          </div>
+          <div class="toggle-item">
+            <div class="mini-toggle off"></div>
+            <span class="toggle-label">句末自動停</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Edit Panel -->
+    <div class="edit-panel">
+
+      <!-- Edit Toolbar -->
+      <div class="edit-toolbar">
+        <button class="tool-btn primary">💾 儲存本地</button>
+        <button class="tool-btn">📤 匯出 SRT</button>
+        <button class="tool-btn">📋 匯出 TXT</button>
+        <div class="edit-toolbar-spacer"></div>
+        <span class="row-count-badge">共 124 句</span>
+        <button class="back-btn">← 返回</button>
+      </div>
+
+      <!-- Edit List -->
+      <div class="edit-list">
+
+        <!-- Row 1 -->
+        <div class="edit-row">
+          <div class="row-num">1</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="07:44.120">
+              <button class="ts-grab-btn" title="設為當前播放時間">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="07:57.800">
+              <button class="ts-grab-btn" title="設為當前播放時間">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="日本語の勉強を始めたのは大学一年生のときでした。">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="我在大學一年級時開始學習日語。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+        <!-- Row 2 -->
+        <div class="edit-row">
+          <div class="row-num">2</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="07:58.200">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="08:11.600">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="最初の半年間は毎日アニメを見て、耳を慣らすことに集中しました。">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="最初的半年，我每天看動漫，專注於讓耳朵習慣日語。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+        <!-- Row 3 -->
+        <div class="edit-row">
+          <div class="row-num">3</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="08:12.000">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="08:30.400">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="文法は最低限だけ、あとはひたすらインプットを増やしました。">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="文法只學最低限度，之後就是拼命增加輸入量。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+        <!-- Row 4 — Focused -->
+        <div class="edit-row focused">
+          <div class="row-num">4</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="08:32.440" style="border-color:#7c3aed; color:#fafafa;">
+              <button class="ts-grab-btn" style="background:rgba(124,58,237,0.3);color:#a855f7;">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="08:50.200">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="N2に合格したとき、正直まだ話せないと感じていました。" style="border-color:#7c3aed; background:#1a1a22; color:#fafafa;">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="通過 N2 的時候，老實說我覺得自己還是不太能說。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+        <!-- Row 5 -->
+        <div class="edit-row">
+          <div class="row-num">5</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="08:51.000">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="09:06.500">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="試験対策よりも、自然な会話力の方が大切だと今は思います。">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="現在我認為，比起應試技巧，自然的會話能力更為重要。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+        <!-- Row 6 -->
+        <div class="edit-row">
+          <div class="row-num">6</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="09:07.200">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="09:21.800">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="一番効果があったのは、やっぱりシャドーイングだと思います。">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="我認為效果最好的，還是跟讀練習（shadowing）。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+        <!-- Row 7 -->
+        <div class="edit-row">
+          <div class="row-num">7</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="09:22.400">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="09:39.600">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="毎日30分、ポッドキャストを使ってシャドーイングを続けました。">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="每天使用 Podcast 進行 30 分鐘的跟讀練習，持續不斷。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+        <!-- Row 8 -->
+        <div class="edit-row">
+          <div class="row-num">8</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="09:40.100">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="09:54.800">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="漢字については、RTKという本を使って認識だけ先に覚えました。">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="關於漢字，我使用 RTK 這本書，先只學認字，不學寫法。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+        <!-- Row 9 -->
+        <div class="edit-row">
+          <div class="row-num">9</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="09:55.200">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="10:10.400">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="RTKを終えたあとは、語彙カードをAnkiで管理しました。">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="完成 RTK 之後，我用 Anki 管理詞彙卡片。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+        <!-- Row 10 -->
+        <div class="edit-row">
+          <div class="row-num">10</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="10:11.000">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="10:27.600">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="一日200枚のカードを三ヶ月で消化したとき、自信がつきました。">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="三個月內消化了每天 200 張卡片後，我開始有了自信。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+        <!-- Row 11 -->
+        <div class="edit-row">
+          <div class="row-num">11</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="10:28.200">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="10:43.900">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="その後は読書に切り替えて、毎月一冊以上の本を読みました。">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="之後轉向閱讀，每個月至少讀一本書。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+        <!-- Row 12 -->
+        <div class="edit-row">
+          <div class="row-num">12</div>
+          <div class="ts-block">
+            <div class="ts-row">
+              <span class="ts-label">START</span>
+              <input class="ts-input" type="text" value="10:44.500">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+            <div class="ts-row">
+              <span class="ts-label">END</span>
+              <input class="ts-input" type="text" value="11:01.800">
+              <button class="ts-grab-btn">⌚</button>
+            </div>
+          </div>
+          <div class="sub-inputs">
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">主字幕</div>
+              <input class="sub-input" type="text" value="小説よりも、まずは興味のある分野のノンフィクションから始めました。">
+            </div>
+            <div class="sub-input-wrap">
+              <div class="sub-input-label">副字幕（譯文）</div>
+              <input class="sub-input secondary" type="text" value="比起小說，我先從感興趣的非虛構類書籍開始讀起。">
+            </div>
+            <button class="delete-btn">×</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Add Row Button -->
+      <div class="add-row-wrap">
+        <button class="add-row-btn">＋ 新增字幕句</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

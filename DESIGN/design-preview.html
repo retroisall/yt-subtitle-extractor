@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>學習Bar — Header Icon 設計選擇</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #09090b;
+    color: #fafafa;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 40px 32px;
+  }
+  h1 { font-size: 13px; color: #52525b; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 32px; }
+  h2 { font-size: 11px; color: #3f3f46; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 16px; }
+
+  /* ===== 預覽卡片 ===== */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 48px; }
+  .card {
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .card:hover { border-color: #7c3aed; box-shadow: 0 0 0 1px #7c3aed33; }
+  .card.selected { border-color: #7c3aed; box-shadow: 0 0 0 2px #7c3aed55; }
+
+  /* Header 模擬 */
+  .mock-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 14px 10px;
+    background: #18181b;
+    border-bottom: 1px solid #27272a;
+  }
+  .mock-header-btns {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .mock-btn {
+    width: 26px; height: 26px;
+    background: #27272a;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mock-btn svg { width: 14px; height: 14px; color: #71717a; }
+
+  .mock-body {
+    padding: 20px 16px;
+    font-size: 11px;
+    color: #3f3f46;
+    text-align: center;
+  }
+
+  /* LED 點陣（靜態 idle 狀態）*/
+  .led-idle { display: flex; gap: 2px; align-items: center; }
+  .led-dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: #27272a;
+  }
+  .led-dot.on { background: #52525b; }
+
+  /* title area */
+  .title-area { display: flex; align-items: center; gap: 7px; flex: 1; }
+
+  /* ===== ICON 設計 A：等化器點陣（rose）===== */
+  .icon-a {
+    width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0;
+    overflow: hidden;
+    box-shadow: 0 0 8px rgba(244,63,94,.3), 0 0 0 1px rgba(244,63,94,.2);
+  }
+
+  /* ===== ICON 設計 B：漸層紫圓角方塊 + 閃電 ===== */
+  .icon-b {
+    width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 10px rgba(124,58,237,.4);
+  }
+  .icon-b svg { width: 12px; height: 12px; color: #fff; }
+
+  /* ===== ICON 設計 C：描邊圓 + 進度點 ===== */
+  .icon-c {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid #f43f5e;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 8px rgba(244,63,94,.35), inset 0 0 8px rgba(244,63,94,.08);
+  }
+  .icon-c-inner {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #f43f5e;
+    box-shadow: 0 0 6px #f43f5e;
+  }
+
+  /* ===== ICON 設計 D：3×3 方格像素 ===== */
+  .icon-d {
+    width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0;
+    background: #0f0f12;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid #27272a;
+  }
+  .px { border-radius: 1px; }
+  .px-on  { background: #a78bfa; }
+  .px-dim { background: #27272a; }
+  .px-mid { background: #6d28d9; }
+
+  /* ===== ICON 設計 E：無 icon，純文字 badge ===== */
+  .icon-e {
+    font-size: 9px; font-weight: 800;
+    background: #f43f5e; color: #fff;
+    padding: 3px 5px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+
+  /* ===== LOGO 文字風格 ===== */
+  /* Style A：紫漸層 */
+  .logo-a .zh {
+    font-size: 13px; font-weight: 700;
+    background: linear-gradient(90deg, #a78bfa, #7c3aed);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .logo-a .bar { font-size: 13px; font-weight: 400; color: #e4e4e7; font-style: italic; }
+
+  /* Style B：膠囊 Tag */
+  .logo-b { display: inline-flex; }
+  .logo-b .zh { font-size: 11px; font-weight: 700; background: #7c3aed; color: #fff; padding: 2px 5px; border-radius: 4px 0 0 4px; }
+  .logo-b .bar { font-size: 11px; font-weight: 700; background: #e4e4e7; color: #18181b; padding: 2px 5px; border-radius: 0 4px 4px 0; }
+
+  /* Style C：Monospace */
+  .logo-c::before { content: '> '; color: #3f3f46; font-family: monospace; font-size: 12px; }
+  .logo-c .zh { font-size: 12px; font-weight: 600; color: #4ade80; font-family: monospace; }
+  .logo-c .bar { font-size: 12px; font-weight: 400; color: #52525b; font-family: monospace; }
+
+  /* Style D：大字+微型英文 */
+  .logo-d { display: inline-flex; align-items: baseline; gap: 3px; }
+  .logo-d .zh { font-size: 14px; font-weight: 800; color: #fafafa; }
+  .logo-d .bar { font-size: 7px; font-weight: 700; color: #a78bfa; letter-spacing: 0.15em; text-transform: uppercase; }
+
+  /* Style E：霓虹 */
+  .logo-e .zh { font-size: 13px; font-weight: 700; color: #fff; text-shadow: 0 0 6px #a78bfa, 0 0 14px #7c3aed; }
+  .logo-e .bar { font-size: 13px; font-weight: 700; color: #a78bfa; text-shadow: 0 0 8px #7c3aed; }
+
+  /* 標籤 */
+  .label {
+    padding: 10px 14px 12px;
+    font-size: 11px; color: #52525b;
+    border-top: 1px solid #1c1c1f;
+  }
+  .label strong { color: #71717a; }
+
+  /* 分隔線 */
+  .section { margin-bottom: 48px; }
+</style>
+</head>
+<body>
+
+<h1>學習Bar — Header 設計選擇（點選喜歡的）</h1>
+
+<!-- ===== SECTION 1：頂部 ICON 設計 ===== -->
+<div class="section">
+  <h2>① 頂部 Icon 設計（左側徽標）</h2>
+  <div class="grid">
+
+    <!-- Icon A：等化器點陣 rose -->
+    <div class="card selected" onclick="select(this)">
+      <div class="mock-header">
+        <div class="title-area">
+          <div class="icon-a">
+            <svg viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="22" height="22" rx="5" fill="#1a0d2e"/>
+              <circle cx="5"  cy="15" r="1.6" fill="#fb7185"/>
+              <circle cx="5"  cy="10" r="1.6" fill="#fb7185"/>
+              <circle cx="5"  cy="5"  r="1.6" fill="#fb7185" opacity=".12"/>
+              <circle cx="11" cy="15" r="1.6" fill="#f43f5e"/>
+              <circle cx="11" cy="10" r="1.6" fill="#f43f5e"/>
+              <circle cx="11" cy="5"  r="1.6" fill="#f43f5e"/>
+              <circle cx="17" cy="15" r="1.6" fill="#fb7185"/>
+              <circle cx="17" cy="10" r="1.6" fill="#fb7185" opacity=".12"/>
+              <circle cx="17" cy="5"  r="1.6" fill="#fb7185" opacity=".12"/>
+            </svg>
+          </div>
+          <div class="logo-a"><span class="zh">學習</span><span class="bar">Bar</span></div>
+        </div>
+        <div class="mock-header-btns">
+          <div class="mock-btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2"/></svg></div>
+          <div class="mock-btn" style="background:#7c3aed;border-radius:50%"></div>
+        </div>
+      </div>
+      <div class="label"><strong>A — 等化器點陣</strong>｜rose 粉色點、深紫底、3 bar 高低排列</div>
+    </div>
+
+    <!-- Icon B：漸層紫方塊 -->
+    <div class="card" onclick="select(this)">
+      <div class="mock-header">
+        <div class="title-area">
+          <div class="icon-b">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 12V8l3-3 3 3 3-5v9H3z"/></svg>
+          </div>
+          <div class="logo-a"><span class="zh">學習</span><span class="bar">Bar</span></div>
+        </div>
+        <div class="mock-header-btns">
+          <div class="mock-btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2"/></svg></div>
+          <div class="mock-btn" style="background:#7c3aed;border-radius:50%"></div>
+        </div>
+      </div>
+      <div class="label"><strong>B — 漸層紫圓角塊</strong>｜折線圖 icon，延續紫色品牌色</div>
+    </div>
+
+    <!-- Icon C：描邊圓 + 亮點 -->
+    <div class="card" onclick="select(this)">
+      <div class="mock-header">
+        <div class="title-area">
+          <div class="icon-c">
+            <div class="icon-c-inner"></div>
+          </div>
+          <div class="logo-a"><span class="zh">學習</span><span class="bar">Bar</span></div>
+        </div>
+        <div class="mock-header-btns">
+          <div class="mock-btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2"/></svg></div>
+          <div class="mock-btn" style="background:#7c3aed;border-radius:50%"></div>
+        </div>
+      </div>
+      <div class="label"><strong>C — 描邊圓 × 核心光點</strong>｜極簡單點，rose 發光感</div>
+    </div>
+
+    <!-- Icon D：3×3 像素格 -->
+    <div class="card" onclick="select(this)">
+      <div class="mock-header">
+        <div class="title-area">
+          <div class="icon-d">
+            <div class="px px-dim"></div><div class="px px-on"></div><div class="px px-dim"></div>
+            <div class="px px-on"></div><div class="px px-mid"></div><div class="px px-on"></div>
+            <div class="px px-on"></div><div class="px px-on"></div><div class="px px-on"></div>
+          </div>
+          <div class="logo-a"><span class="zh">學習</span><span class="bar">Bar</span></div>
+        </div>
+        <div class="mock-header-btns">
+          <div class="mock-btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2"/></svg></div>
+          <div class="mock-btn" style="background:#7c3aed;border-radius:50%"></div>
+        </div>
+      </div>
+      <div class="label"><strong>D — 3×3 像素格</strong>｜紫色菱形圖案，復古 pixel art</div>
+    </div>
+
+    <!-- Icon E：純文字 badge -->
+    <div class="card" onclick="select(this)">
+      <div class="mock-header">
+        <div class="title-area">
+          <div class="icon-e">LB</div>
+          <div class="logo-a"><span class="zh">學習</span><span class="bar">Bar</span></div>
+        </div>
+        <div class="mock-header-btns">
+          <div class="mock-btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2"/></svg></div>
+          <div class="mock-btn" style="background:#7c3aed;border-radius:50%"></div>
+        </div>
+      </div>
+      <div class="label"><strong>E — 縮寫 Badge「LB」</strong>｜rose 底白字，字母縮寫徽標</div>
+    </div>
+
+    <!-- Icon F：無 icon -->
+    <div class="card" onclick="select(this)">
+      <div class="mock-header">
+        <div class="title-area">
+          <div class="logo-a"><span class="zh">學習</span><span class="bar">Bar</span></div>
+        </div>
+        <div class="mock-header-btns">
+          <div class="mock-btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2"/></svg></div>
+          <div class="mock-btn" style="background:#7c3aed;border-radius:50%"></div>
+        </div>
+      </div>
+      <div class="label"><strong>F — 純文字，無 Icon</strong>｜最乾淨，LOGO 字型就是品牌</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== SECTION 2：LOGO 文字風格 ===== -->
+<div class="section">
+  <h2>② LOGO 文字風格（搭配任何 Icon）</h2>
+  <div class="grid">
+
+    <div class="card selected" onclick="select(this)">
+      <div class="mock-header" style="min-height:52px">
+        <div class="title-area">
+          <div class="icon-a" style="flex-shrink:0">
+            <svg viewBox="0 0 22 22"><rect width="22" height="22" rx="5" fill="#1a0d2e"/><circle cx="5" cy="15" r="1.6" fill="#fb7185"/><circle cx="5" cy="10" r="1.6" fill="#fb7185"/><circle cx="5" cy="5" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="11" cy="15" r="1.6" fill="#f43f5e"/><circle cx="11" cy="10" r="1.6" fill="#f43f5e"/><circle cx="11" cy="5" r="1.6" fill="#f43f5e"/><circle cx="17" cy="15" r="1.6" fill="#fb7185"/><circle cx="17" cy="10" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="17" cy="5" r="1.6" fill="#fb7185" opacity=".12"/></svg>
+          </div>
+          <div class="logo-a"><span class="zh">學習</span><span class="bar">Bar</span></div>
+        </div>
+      </div>
+      <div class="label"><strong>Style A</strong>｜紫色漸層粗體 + 白色細斜體</div>
+    </div>
+
+    <div class="card" onclick="select(this)">
+      <div class="mock-header" style="min-height:52px">
+        <div class="title-area">
+          <div class="icon-a" style="flex-shrink:0">
+            <svg viewBox="0 0 22 22"><rect width="22" height="22" rx="5" fill="#1a0d2e"/><circle cx="5" cy="15" r="1.6" fill="#fb7185"/><circle cx="5" cy="10" r="1.6" fill="#fb7185"/><circle cx="5" cy="5" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="11" cy="15" r="1.6" fill="#f43f5e"/><circle cx="11" cy="10" r="1.6" fill="#f43f5e"/><circle cx="11" cy="5" r="1.6" fill="#f43f5e"/><circle cx="17" cy="15" r="1.6" fill="#fb7185"/><circle cx="17" cy="10" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="17" cy="5" r="1.6" fill="#fb7185" opacity=".12"/></svg>
+          </div>
+          <div class="logo-b"><span class="zh">學習</span><span class="bar">Bar</span></div>
+        </div>
+      </div>
+      <div class="label"><strong>Style B</strong>｜膠囊 Tag，紫底白 / 灰底深</div>
+    </div>
+
+    <div class="card" onclick="select(this)">
+      <div class="mock-header" style="min-height:52px">
+        <div class="title-area">
+          <div class="icon-a" style="flex-shrink:0">
+            <svg viewBox="0 0 22 22"><rect width="22" height="22" rx="5" fill="#1a0d2e"/><circle cx="5" cy="15" r="1.6" fill="#fb7185"/><circle cx="5" cy="10" r="1.6" fill="#fb7185"/><circle cx="5" cy="5" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="11" cy="15" r="1.6" fill="#f43f5e"/><circle cx="11" cy="10" r="1.6" fill="#f43f5e"/><circle cx="11" cy="5" r="1.6" fill="#f43f5e"/><circle cx="17" cy="15" r="1.6" fill="#fb7185"/><circle cx="17" cy="10" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="17" cy="5" r="1.6" fill="#fb7185" opacity=".12"/></svg>
+          </div>
+          <div class="logo-c"><span class="zh">學習</span><span class="bar">Bar</span></div>
+        </div>
+      </div>
+      <div class="label"><strong>Style C</strong>｜終端機 Monospace，綠字工程師風</div>
+    </div>
+
+    <div class="card" onclick="select(this)">
+      <div class="mock-header" style="min-height:52px">
+        <div class="title-area">
+          <div class="icon-a" style="flex-shrink:0">
+            <svg viewBox="0 0 22 22"><rect width="22" height="22" rx="5" fill="#1a0d2e"/><circle cx="5" cy="15" r="1.6" fill="#fb7185"/><circle cx="5" cy="10" r="1.6" fill="#fb7185"/><circle cx="5" cy="5" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="11" cy="15" r="1.6" fill="#f43f5e"/><circle cx="11" cy="10" r="1.6" fill="#f43f5e"/><circle cx="11" cy="5" r="1.6" fill="#f43f5e"/><circle cx="17" cy="15" r="1.6" fill="#fb7185"/><circle cx="17" cy="10" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="17" cy="5" r="1.6" fill="#fb7185" opacity=".12"/></svg>
+          </div>
+          <div class="logo-d"><span class="zh">學習</span><span class="bar">BAR</span></div>
+        </div>
+      </div>
+      <div class="label"><strong>Style D</strong>｜大字 + 微型英文大寫，層次感</div>
+    </div>
+
+    <div class="card" onclick="select(this)">
+      <div class="mock-header" style="min-height:52px">
+        <div class="title-area">
+          <div class="icon-a" style="flex-shrink:0">
+            <svg viewBox="0 0 22 22"><rect width="22" height="22" rx="5" fill="#1a0d2e"/><circle cx="5" cy="15" r="1.6" fill="#fb7185"/><circle cx="5" cy="10" r="1.6" fill="#fb7185"/><circle cx="5" cy="5" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="11" cy="15" r="1.6" fill="#f43f5e"/><circle cx="11" cy="10" r="1.6" fill="#f43f5e"/><circle cx="11" cy="5" r="1.6" fill="#f43f5e"/><circle cx="17" cy="15" r="1.6" fill="#fb7185"/><circle cx="17" cy="10" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="17" cy="5" r="1.6" fill="#fb7185" opacity=".12"/></svg>
+          </div>
+          <div class="logo-e"><span class="zh">學習</span><span class="bar">Bar</span></div>
+        </div>
+      </div>
+      <div class="label"><strong>Style E</strong>｜霓虹發光，白字 + 紫色光暈</div>
+    </div>
+
+    <!-- 跨行推薦：Icon A + Style A 組合 -->
+    <div class="card" onclick="select(this)" style="border-color:#f43f5e55">
+      <div class="mock-header" style="background:linear-gradient(180deg,#1a0d2e 0%,#18181b 100%);min-height:52px">
+        <div class="title-area">
+          <div class="icon-a" style="flex-shrink:0">
+            <svg viewBox="0 0 22 22"><rect width="22" height="22" rx="5" fill="#1a0d2e"/><circle cx="5" cy="15" r="1.6" fill="#fb7185"/><circle cx="5" cy="10" r="1.6" fill="#fb7185"/><circle cx="5" cy="5" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="11" cy="15" r="1.6" fill="#f43f5e"/><circle cx="11" cy="10" r="1.6" fill="#f43f5e"/><circle cx="11" cy="5" r="1.6" fill="#f43f5e"/><circle cx="17" cy="15" r="1.6" fill="#fb7185"/><circle cx="17" cy="10" r="1.6" fill="#fb7185" opacity=".12"/><circle cx="17" cy="5" r="1.6" fill="#fb7185" opacity=".12"/></svg>
+          </div>
+          <div class="logo-e"><span class="zh">學習</span><span class="bar">Bar</span></div>
+        </div>
+      </div>
+      <div class="label" style="color:#f43f5e88">
+        <strong style="color:#f43f5eaa">★ 推薦組合</strong>｜Icon A 等化器 × Style E 霓虹，point 美學最一致
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function select(card) {
+  card.closest('.grid').querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+}
+</script>
+</body>
+</html>

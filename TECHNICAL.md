@@ -524,3 +524,125 @@ node test.mjs
 - `align-items` 從 `flex-end` 改為 `center`，`align-self: center` 補強
 - 導覽按鈕現在永遠垂直置中於字幕 body
 
+---
+
+## 2026-04-22 技術日報
+
+### 字幕模式（Subtitle Mode）功能實作
+
+**架構**：
+- 進入時把 `#movie_player video` 搬到 `.ysm-video-box`，加上 class `.ysm-real-video`
+- 離開時歸還給 `#movie_player`，恢復 visibility
+- 所有字幕模式內部的 video selector 一律使用 `.ysm-real-video || video`，不依賴原位置
+
+**關鍵實作**：
+- `buildTokenizedText(container, text, startTime)` 共用：字幕列表、Overlay、字幕模式三處使用同一函式，單字 span 含 startTime / videoId / sentenceText
+- 循環按鈕 click handler 直接呼叫 `updateCurrentLoopStyle()`，裡面再呼叫 `updateWbLoopBtn()`，後者統一更新所有 `.ysm-loop-btn`、`.yt-sub-wb-row-loop`
+- `_ysmSyncInterval`（300ms）只在 `activeIdx !== _ysmLastActiveIdx` 時才 scrollIntoView，避免鎖定手動捲動
+
+---
+
+### 字幕模式 timeupdate listener 洩漏
+
+| 項目 | 說明 |
+|------|------|
+| 問題 | `enterSubtitleMode` 內定義的 `_ysmSyncControls` 函式綁到 video 的 timeupdate，退出後仍持續觸發 |
+| 根因 | 函式定義在 closure 內，exitSubtitleMode 無法取到參考 |
+| 修正 | 新增模組層級 `let _ysmTimeUpdateHandler = null`，進入時存 ref，退出時 removeEventListener |
+| 位置 | `enterSubtitleMode()` L3474、`exitSubtitleMode()` L3610 |
+
+---
+
+### 本地字幕被 YouTube 字幕覆蓋（多層競爭）
+
+這是今日最複雜的 bug，涉及多個非同步競爭點。
+
+**問題現象**：使用者有本地字幕（editedSubtitles_xxx），頁面重新整理後有時顯示本地字幕，有時被 YouTube 字幕蓋掉。
+
+**根因 1：message handler 無 customSubtitleActive 保護**
+```javascript
+// 修正前（inject.js 字幕資料回來後直接覆蓋）
+if (tag === 'primary') {
+  primarySubtitles = parsed;   // ← 不管 customSubtitleActive
+}
+// 修正後
+if (tag === 'primary') {
+  if (!customSubtitleActive) {
+    primarySubtitles = parsed;
+  }
+  if (customSubtitleActive) { renderSubtitleList(); startSync(); return; }
+}
+```
+
+**根因 2：_restoreSavedSubtitle 未設 customSubtitleActive = true**
+```javascript
+// 修正前：本地字幕還原後 customSubtitleActive 仍為 false
+if (savedPrimary?.length) {
+  primarySubtitles = savedPrimary;
+  // ...
+}
+// 修正後
+if (savedPrimary?.length) {
+  customSubtitleActive = true;  // ← 必須最先設，防止後續事件覆蓋
+  primarySubtitles = savedPrimary;
+  // ...
+}
+```
+
+**根因 3：翻譯函數 / 狀態函數蓋掉 status**
+
+下列函式在 `customSubtitleActive = true` 時仍無條件更新 `yt-sub-status`：
+- `translateAndSetSecondary` 翻譯完成（"主：英文（6 句）"）
+- `translatePrimarySubtitles` 翻譯進度
+- `_showTranslationGate`（未登入提示）
+- `renderLanguages` 的「找到 N 個字幕語言」
+
+**全部補上 `!customSubtitleActive` 保護**。
+
+**除錯流程**：用 Playwright CDP `Runtime.consoleAPICalled` 捕獲 extension isolated world console，在 `_restoreSavedSubtitle` 加 log，確認 restore 確實執行且 hasData=true，才發現是翻譯函數 2 秒後覆蓋 status。
+
+---
+
+### QA 自動化：本地字幕策略
+
+**問題**：YouTube pot token 在 headless 模式下可能失敗，字幕不可靠。
+
+**解法**：用 CDP 寫入 `editedSubtitles_<videoId>` 到 `chrome.storage.local`（extension isolated world），利用套件的本地字幕還原機制，完全繞過 YouTube 字幕 HTTP 請求。
+
+**關鍵程式碼**（`tests/qa-subtitle-mode.mjs`）：
+```javascript
+// 1. 寫入本地字幕
+await storageSet(client, ctxId, `editedSubtitles_${VIDEO_ID}`, {
+  primarySubtitles: [...],
+  secondarySubtitles: [],
+});
+// 2. 頁面重新整理，套件自動還原
+await page.reload({ waitUntil: 'domcontentloaded' });
+// 3. 等待狀態文字確認
+await pollStatusText(page, '已還原', 15000);
+```
+
+**注意**：`waitForExtContext` 必須在 `page.reload()` 之前就開始監聽，否則 extension context 建立事件會漏掉。
+
+---
+
+### updateCurrentLoopStyle 短路問題
+
+**問題**：字幕模式切換循環句（從句 A 到句 B，都是 looping=true），`updateCurrentLoopStyle` 的 `_lastLoopingState` 防抖直接 return，`updateWbLoopBtn` 不執行，`.ysm-loop-btn` 的 active 不更新。
+
+**修正**：
+```javascript
+function updateCurrentLoopStyle() {
+  // 先更新 row 按鈕（不受短路影響）
+  updateWbLoopBtn();
+  const looping = loopingIdx >= 0;
+  if (looping === _lastLoopingState) return;
+  _lastLoopingState = looping;
+  // 只有 on/off 狀態改變才更新全域樣式
+  document.getElementById('yt-sub-current')?.classList.toggle('looping', looping);
+  document.getElementById('yt-sub-ov-body')?.classList.toggle('looping', looping);
+}
+```
+
+`updateWbLoopBtn` 同時更新 `.yt-sub-wb-row-loop`（生字本列）和 `.ysm-loop-btn`（字幕模式列）。
+

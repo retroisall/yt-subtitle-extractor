@@ -54,6 +54,10 @@
   let _ccBtnObserver = null;  // MutationObserver：監聽 CC 按鈕 aria-pressed，與 overlay 字幕綁定開關
   let _currentPrimIdx = -1;  // sync loop 目前顯示的主字幕 index（供 >/<  按鈕直接使用，避免 gap 時 findActiveIndex 回傳 -1）
   let _navedToIdx = -1;     // 手動跳句的目標 index；sync loop 必須等 video 真正抵達此 index 才可更新 _currentPrimIdx
+  let _navLockedIdx = -1;   // 導航鎖定的目標 index，連點時以此為基準（避免 seek async 期間重算同一句）
+  let _navLockUntil = 0;    // 導航鎖定到期時間戳；期間 sync loop 不更新 _currentPrimIdx
+  let _wbExpandLoopTimer = null; // 生字本展開重複句 timer（setInterval ID 或 setTimeout ID）
+  let _wbExpandLoopMode  = null; // 'video' | 'tts' | null
   let _lastSyncPrimIdx = -2; // 上一次 sync loop 的 primIdx，用來避免 index 未變時重跑 DOM list 更新
   let _windowContextMenuBound = false; // window capture 右鍵 delegation 是否已綁定（只綁一次）
   const translationCache = {};  // videoId:lang → subtitles array (max 10 entries)
@@ -130,6 +134,9 @@
       wordSpeak: true,   // 點擊單字朗讀
       extensionEnabled: true, // 套件整體開關
       extendSubtitles: true, // 延長字幕顯示（填滿字幕間的空白間隔）
+      filterSoundDesc: false, // 過濾狀聲詞（移除 [Music] 等方括號標示）
+      keyboardNav: true,     // A/D 快捷鍵控制上一句 / 下一句
+      wbExpandLoop: false,   // 生字本展開時持續重複句子（間隔 3 秒）
       subtitleOffset: 0,    // 字幕時間偏移（秒），正數延後、負數提前，範圍 ±30
       onboardingDone: false, // 是否已完成語言初始設定
     };
@@ -232,14 +239,16 @@
           <div class="yt-sub-wordbook" id="yt-sub-wordbook">
             <div class="yt-sub-wordbook-toolbar">
               <select class="yt-sub-select yt-sub-wordbook-sort" id="yt-sub-wordbook-sort">
+                <option value="date-desc" selected>最近加入</option>
                 <option value="current-video">從此影片生成的生字</option>
-                <option value="date-desc">最近加入</option>
                 <option value="count-desc">查詢最多</option>
                 <option value="alpha">字母順序</option>
+                <option value="learned">已學會</option>
               </select>
               <button class="yt-sub-wb-loop-btn" id="yt-sub-wb-loop-btn" title="循環當前句">⇄</button>
               <span class="yt-sub-wordbook-count" id="yt-sub-wordbook-count"></span>
             </div>
+            <input class="yt-sub-wb-search" id="yt-sub-wb-search" type="text" placeholder="搜尋單字…" autocomplete="off" spellcheck="false">
             <div class="yt-sub-wordbook-list" id="yt-sub-wordbook-list"></div>
           </div>
         </div>
@@ -379,6 +388,27 @@
                   <span class="yt-sub-switch-slider"></span>
                 </label>
               </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">過濾狀聲詞 [Music]</span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-filter-sound-desc">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">A/D 鍵跳句</span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-keyboard-nav">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">生字本展開重複句</span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-wb-expand-loop">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
               <div class="yt-sub-settings-row yt-sub-offset-row">
                 <span class="yt-sub-settings-label">字幕時間偏移</span>
                 <div class="yt-sub-offset-control">
@@ -512,8 +542,9 @@
       });
     });
 
-    // 生字本排序變更時重新渲染
+    // 生字本排序 / 搜尋變更時重新渲染
     document.getElementById('yt-sub-wordbook-sort').addEventListener('change', () => renderWordbook());
+    document.getElementById('yt-sub-wb-search').addEventListener('input', () => renderWordbook());
 
     // 生字本循環當前句按鈕
     document.getElementById('yt-sub-wb-loop-btn').addEventListener('click', () => {
@@ -703,6 +734,29 @@
           : [..._rawPrimarySubtitles];
         renderSubtitleList();
       }
+    });
+
+    const filterSoundEl = document.getElementById('yt-sub-filter-sound-desc');
+    filterSoundEl.checked = settings.filterSoundDesc;
+    filterSoundEl.addEventListener('change', () => {
+      settings.filterSoundDesc = filterSoundEl.checked;
+      saveSettings();
+      if (primarySubtitles.length) renderSubtitleList();
+    });
+
+    const keyboardNavEl = document.getElementById('yt-sub-keyboard-nav');
+    keyboardNavEl.checked = settings.keyboardNav;
+    keyboardNavEl.addEventListener('change', () => {
+      settings.keyboardNav = keyboardNavEl.checked;
+      saveSettings();
+    });
+
+    const wbExpandLoopEl = document.getElementById('yt-sub-wb-expand-loop');
+    wbExpandLoopEl.checked = settings.wbExpandLoop;
+    wbExpandLoopEl.addEventListener('change', () => {
+      settings.wbExpandLoop = wbExpandLoopEl.checked;
+      saveSettings();
+      if (!settings.wbExpandLoop) _stopWbExpandLoop();
     });
 
     // 字幕時間偏移滑桿
@@ -1324,8 +1378,10 @@
 
     fillAsrSelect(asrTracks);
 
-    status.textContent = `找到 ${trackList.length} 個字幕語言`;
-    status.className = 'yt-sub-status success';
+    if (!customSubtitleActive) {
+      status.textContent = `找到 ${trackList.length} 個字幕語言`;
+      status.className = 'yt-sub-status success';
+    }
 
     container.innerHTML = '<span class="yt-sub-section-title">字幕語言：</span>';
     const langDropdown = document.createElement('select');
@@ -1678,13 +1734,13 @@
 
       const primEl = document.createElement('div');
       primEl.className = 'yt-sub-text-primary';
-      buildTokenizedText(primEl, sub.text, sub.startTime);
+      buildTokenizedText(primEl, filterSubText(sub.text), sub.startTime);
       texts.appendChild(primEl);
 
       if (settings.dualEnabled && secSub) {
         const secEl = document.createElement('div');
         secEl.className = 'yt-sub-text-secondary';
-        secEl.textContent = secSub.text;
+        secEl.textContent = filterSubText(secSub.text);
         texts.appendChild(secEl);
       }
 
@@ -1762,6 +1818,30 @@
   const dictCache = {};  // word → result (max 200 entries)
   const DICT_CACHE_MAX = 200;
 
+  // 將彈窗定位在錨點正上方，以 bottom 貼齊錨點上緣往上撐開，確保不遮句子與單字
+  // 上方空間不足（< 280px）時改為正下方，以 top 貼齊錨點下緣往下撐開
+  function _positionPopupNearAnchor(popup, anchor) {
+    const MARGIN = 8;
+    const GAP = 6;
+    const POPUP_W = 420;
+    const ASSUMED_H = 280; // 用於判斷上方是否有足夠空間，不影響實際高度
+    const rect = anchor.getBoundingClientRect();
+    // 水平：置中對齊錨點，做邊界保護
+    let left = rect.left + rect.width / 2 - POPUP_W / 2;
+    left = Math.max(MARGIN, Math.min(left, window.innerWidth - POPUP_W - MARGIN));
+    popup.style.left  = left + 'px';
+    popup.style.right = 'auto';
+    if (rect.top - GAP - ASSUMED_H >= MARGIN) {
+      // 上方空間足夠：bottom 貼在錨點上緣，彈窗往上撐，永遠不蓋住單字與句子
+      popup.style.top    = 'auto';
+      popup.style.bottom = (window.innerHeight - rect.top + GAP) + 'px';
+    } else {
+      // 上方空間不足：top 貼在錨點下緣，彈窗往下撐
+      popup.style.top    = (rect.bottom + GAP) + 'px';
+      popup.style.bottom = 'auto';
+    }
+  }
+
   function showWordPopup(word, anchor, sentenceData = null) {
     let popup = document.getElementById('yt-sub-word-popup');
     if (!popup) {
@@ -1770,11 +1850,9 @@
       document.body.appendChild(popup);
     }
 
-    // 定位：畫面置中（CSS 已設 left:50% top:50% transform:translate(-50%,-50%)）
-    popup.style.left = '';
-    popup.style.top = '';
-    popup.style.transform = '';
     popup.style.display = 'block';
+    // 定位：錨點正上方，空間不足則改正下方，水平置中後做邊界保護
+    _positionPopupNearAnchor(popup, anchor);
     popup.innerHTML = `<div class="yt-sub-popup-loading">查詢「${word}」中...</div>`;
 
     // 點其他地方關閉
@@ -1854,7 +1932,9 @@
     const wordZhHtml = result.wordZh
       ? `<div class="yt-sub-popup-word-zh">${escapeHtml(result.wordZh)}</div>`
       : (result.translating ? `<div class="yt-sub-popup-word-zh yt-sub-popup-translating">...</div>` : '');
-    const alreadySaved = _savedWordSet.has(result.word.toLowerCase());
+    const wordKey = result.word.toLowerCase();
+    const alreadySaved = _savedWordSet.has(wordKey);
+    const alreadyLearned = _learnedWordSet.has(wordKey);
     popup.innerHTML = `
       <div class="yt-sub-popup-word">${escapeHtml(result.word)}
         ${result.phonetic ? `<span class="yt-sub-popup-phonetic">${escapeHtml(result.phonetic)}</span>` : ''}
@@ -1866,9 +1946,14 @@
       ${result.definitionZh ? `<div class="yt-sub-popup-def-zh">${escapeHtml(result.definitionZh)}</div>` : zhLoading}
       ${result.example ? `<div class="yt-sub-popup-example">${escapeHtml(result.example)}</div>` : ''}
       ${synHtml}
-      <button class="yt-sub-popup-save-btn${alreadySaved ? ' saved' : ''}" data-word="${escapeHtml(result.word)}">
-        ${alreadySaved ? '✓ 已在生字本' : '＋ 加入生字本'}
-      </button>
+      <div class="yt-sub-popup-action-row">
+        <button class="yt-sub-popup-save-btn${alreadySaved ? ' saved' : ''}" data-word="${escapeHtml(wordKey)}">
+          ${alreadySaved ? '✓ 已在生字本' : '＋ 加入生字本'}
+        </button>
+        ${alreadySaved ? `<button class="yt-sub-popup-learn-btn${alreadyLearned ? ' active' : ''}" data-word="${escapeHtml(wordKey)}">
+          ${alreadyLearned ? '✓ 已學會' : '已學會'}
+        </button>` : ''}
+      </div>
     `;
     // 綁定加入生字本按鈕
     popup.querySelector('.yt-sub-popup-save-btn').addEventListener('click', e => {
@@ -1879,7 +1964,109 @@
       saveWord(w, null, sentenceData?.context || '', sentenceData?.startTime || 0);
       e.currentTarget.textContent = '✓ 已在生字本';
       e.currentTarget.classList.add('saved');
+      // 存入後動態插入已學會按鈕
+      if (!popup.querySelector('.yt-sub-popup-learn-btn')) {
+        const lb = document.createElement('button');
+        lb.className = 'yt-sub-popup-learn-btn';
+        lb.dataset.word = w.toLowerCase();
+        lb.textContent = '已學會';
+        lb.addEventListener('click', _popupLearnBtnHandler);
+        e.currentTarget.parentElement.appendChild(lb);
+      }
     });
+    // 綁定已學會按鈕（若存在）
+    const learnBtn = popup.querySelector('.yt-sub-popup-learn-btn');
+    if (learnBtn) learnBtn.addEventListener('click', _popupLearnBtnHandler);
+  }
+
+  // popup 已學會按鈕的 handler（獨立函式供動態插入時重用）
+  function _popupLearnBtnHandler(e) {
+    e.stopPropagation();
+    const btn = e.currentTarget;
+    const w = btn.dataset.word;
+    // 借用 toggleLearnedStatus，傳入 null 的 rowEl/mainEl（不影響 wordbook 列表）
+    chrome.storage.local.get(SAVED_WORDS_KEY, data => {
+      const saved = data[SAVED_WORDS_KEY] || {};
+      if (!saved[w] || saved[w].deletedAt) return;
+      const nowLearned = saved[w].status !== 'learned';
+      if (nowLearned) saved[w].status = 'learned';
+      else delete saved[w].status;
+      chrome.storage.local.set({ [SAVED_WORDS_KEY]: saved }, () => {
+        if (nowLearned) _learnedWordSet.add(w);
+        else _learnedWordSet.delete(w);
+        btn.textContent = nowLearned ? '✓ 已學會' : '已學會';
+        btn.classList.toggle('active', nowLearned);
+        // 若生字本面板開著，同步重繪對應的 row
+        const listEl = document.getElementById('yt-sub-wordbook-list');
+        if (listEl) {
+          const row = listEl.querySelector(`.yt-sub-wb-del[data-word="${CSS.escape(w)}"]`)?.closest('.yt-sub-wb-row');
+          if (row) {
+            row.classList.toggle('learned', nowLearned);
+            const learnRowBtn = row.querySelector('.yt-sub-wb-learned-btn');
+            if (learnRowBtn) { learnRowBtn.textContent = nowLearned ? '✓ 已學會' : '標記為已學會'; learnRowBtn.classList.toggle('active', nowLearned); }
+            const badge = row.querySelector('.yt-sub-wb-learned-badge');
+            if (nowLearned && !badge) {
+              const b = document.createElement('span');
+              b.className = 'yt-sub-wb-learned-badge';
+              b.textContent = '✓ 已學會';
+              const mainEl = row.querySelector('.yt-sub-wb-row-main');
+              const countEl = mainEl?.querySelector('.yt-sub-wb-meta');
+              const delBtn = mainEl?.querySelector('.yt-sub-wb-del');
+              mainEl?.insertBefore(b, countEl || delBtn);
+            } else if (!nowLearned && badge) { badge.remove(); }
+          }
+        }
+      });
+    });
+  }
+
+  // 停止生字本展開重複句 loop
+  function _stopWbExpandLoop() {
+    clearInterval(_wbExpandLoopTimer);
+    clearTimeout(_wbExpandLoopTimer);
+    _wbExpandLoopTimer = null;
+    _wbExpandLoopMode  = null;
+    window.speechSynthesis?.cancel();
+  }
+
+  // 啟動生字本展開重複句 loop
+  // 當前影片：seek 到句子起點重播，間隔 = 句子長度 + 3 秒
+  // 非當前影片：暫停影片，用 TTS 朗讀整句，間隔 3 秒後再朗讀
+  function _startWbExpandLoop(item) {
+    _stopWbExpandLoop();
+    const currentVideoId = new URLSearchParams(location.search).get('v') || '';
+    const isSameVideo = !!(item.videoId && item.videoId === currentVideoId && item.startTime != null);
+    _wbExpandLoopMode = isSameVideo ? 'video' : 'tts';
+
+    if (isSameVideo) {
+      const sub = primarySubtitles.find(s => Math.abs(s.startTime - item.startTime) < 0.1);
+      const cycleDuration = ((sub?.duration || 4) + 3) * 1000;
+      seekTo(item.startTime);
+      const video = document.querySelector('video');
+      if (video?.paused) video.play().catch(() => {});
+      _wbExpandLoopTimer = setInterval(() => {
+        seekTo(item.startTime);
+        const v = document.querySelector('video');
+        if (v?.paused) v.play().catch(() => {});
+      }, cycleDuration);
+    } else {
+      // 非當前影片：暫停後用 TTS 遞迴朗讀
+      const video = document.querySelector('video');
+      if (video && !video.paused) video.pause();
+      const scheduleTts = () => {
+        if (_wbExpandLoopMode !== 'tts') return;
+        const utter = new SpeechSynthesisUtterance(item.context || item.word);
+        utter.lang = 'en-US';
+        utter.rate = 0.85;
+        utter.onend = () => {
+          if (_wbExpandLoopMode !== 'tts') return;
+          _wbExpandLoopTimer = setTimeout(scheduleTts, 3000);
+        };
+        window.speechSynthesis?.cancel();
+        window.speechSynthesis?.speak(utter);
+      };
+      scheduleTts();
+    }
   }
 
   function speakWord(word) {
@@ -1995,14 +2182,16 @@
 
   // 已儲存單字集合（lemma 小寫），供字幕高亮使用
   let _savedWordSet = new Set();
+  // 已學會單字集合（lemma 小寫），供 popup 即時判斷狀態
+  let _learnedWordSet = new Set();
 
   // 從 storage 重新載入生字本 Set，完成後 patch 所有現存字幕 span
   function refreshSavedWordSet() {
     chrome.storage.local.get(SAVED_WORDS_KEY, data => {
       const saved = data[SAVED_WORDS_KEY] || {};
-      _savedWordSet = new Set(
-        Object.values(saved).filter(w => !w.deletedAt).map(w => w.word)
-      );
+      const active = Object.values(saved).filter(w => !w.deletedAt);
+      _savedWordSet  = new Set(active.map(w => w.word));
+      _learnedWordSet = new Set(active.filter(w => w.status === 'learned').map(w => w.word));
       patchSavedWordHighlights();
     });
   }
@@ -2019,6 +2208,7 @@
 
   // 儲存單字到本地生字本；sentenceContext 為完整字幕句，startTime 為句子時間軸（秒）
   function saveWord(word, anchor, sentenceContext, startTime) {
+    word = word.toLowerCase(); // 統一小寫，確保 Set / storage key 一致
     const hasCachedLookup = dictCache[word] !== undefined;
     const cached = hasCachedLookup ? dictCache[word] : null;
     const cachedNotFound = hasCachedLookup && cached === null; // 查過但字典無此字
@@ -2029,29 +2219,46 @@
 
     chrome.storage.local.get(SAVED_WORDS_KEY, data => {
       const saved = data[SAVED_WORDS_KEY] || {};
-      const alreadySaved = !!saved[word];
+      // 軟刪除的字視為「未存在」，重新加入時需清除 deletedAt
+      const alreadySaved = !!saved[word] && !saved[word].deletedAt;
       if (!alreadySaved) {
-        saved[word] = {
-          word,
-          addedAt: Date.now(),
-          count: 1,
-          tier: cachedTier,
-          tierFetched: hasCachedLookup,
-          noDefinition: cachedNotFound,   // true = 字典查無此字，不顯示查詢按鈕
-          wordZh: cachedWordZh,     // 單字通用中文（危險、奇蹟...）
-          definitionZh: cachedZh,
-          context: sentenceContext || '',
-          contextZh: '',        // 非同步翻譯後填入
-          videoId,
-          startTime: startTime ?? 0,
-        };
+        if (saved[word]) {
+          // 曾被軟刪除：清除刪除標記與已學會狀態，重設時間與計數（視為全新字）
+          delete saved[word].deletedAt;
+          delete saved[word].status;
+          saved[word].addedAt = Date.now();
+          saved[word].count = 1;
+          if (cachedTier) { saved[word].tier = cachedTier; saved[word].tierFetched = true; }
+          if (cachedWordZh) saved[word].wordZh = cachedWordZh;
+          if (cachedZh) saved[word].definitionZh = cachedZh;
+          if (sentenceContext) {
+            if (saved[word].context !== sentenceContext) saved[word].contextZh = '';
+            saved[word].context = sentenceContext;
+          }
+          saved[word].videoId = videoId;
+          saved[word].startTime = startTime ?? 0;
+        } else {
+          saved[word] = {
+            word,
+            addedAt: Date.now(),
+            count: 1,
+            tier: cachedTier,
+            tierFetched: hasCachedLookup,
+            noDefinition: cachedNotFound,
+            wordZh: cachedWordZh,
+            definitionZh: cachedZh,
+            context: sentenceContext || '',
+            contextZh: '',
+            videoId,
+            startTime: startTime ?? 0,
+          };
+        }
       } else {
         saved[word].count = (saved[word].count || 1) + 1;
         if (!saved[word].tier && cachedTier) { saved[word].tier = cachedTier; saved[word].tierFetched = true; }
         if (!saved[word].wordZh && cachedWordZh) saved[word].wordZh = cachedWordZh;
         if (!saved[word].definitionZh && cachedZh) saved[word].definitionZh = cachedZh;
         if (sentenceContext) {
-          // 只有例句真的變了才重置 contextZh，避免連續右鍵重複打翻譯 API
           if (saved[word].context !== sentenceContext) saved[word].contextZh = '';
           saved[word].context = sentenceContext;
           saved[word].videoId = videoId;
@@ -2177,11 +2384,30 @@
         displayed = [...words].sort((a, b) => b.count - a.count);
       } else if (sortKey === 'alpha') {
         displayed = [...words].sort((a, b) => a.word.localeCompare(b.word));
+      } else if (sortKey === 'learned') {
+        displayed = [...words.filter(w => w.status === 'learned')].sort((a, b) => b.addedAt - a.addedAt);
       }
 
+      // 搜尋過濾：字頭前綴比對（輸入 "appl" 能找到 "apple"，輸入 "pple" 找不到）
+      const searchQ = (document.getElementById('yt-sub-wb-search')?.value || '').trim().toLowerCase();
+      if (searchQ) {
+        displayed = displayed.filter(w =>
+          w.word.toLowerCase().startsWith(searchQ) ||
+          (w.wordZh && w.wordZh.toLowerCase().startsWith(searchQ))
+        );
+      }
+
+      const learnedTotal = words.filter(w => w.status === 'learned').length;
+      const baseCount = sortKey === 'current-video' ? displayed.length : words.length;
       const totalLabel = sortKey === 'current-video'
         ? (displayed.length ? `當前影片 ${displayed.length} 個單字` : '此影片尚未儲存任何單字')
-        : (words.length ? `共 ${words.length} 個單字` : '尚未儲存任何單字');
+        : sortKey === 'learned'
+          ? (learnedTotal
+              ? (searchQ ? `${displayed.length} / ${learnedTotal} 個單字` : `已學會 ${learnedTotal} 個單字`)
+              : '尚未標記任何單字為已學會')
+          : (searchQ
+              ? `${displayed.length} / ${baseCount} 個單字`
+              : (words.length ? `共 ${words.length} 個單字` : '尚未儲存任何單字'));
       countEl.textContent = totalLabel;
       listEl.innerHTML = '';
 
@@ -2189,7 +2415,8 @@
 
       displayed.forEach(item => {
         const row = document.createElement('div');
-        row.className = 'yt-sub-wb-row';
+        const isLearned = item.status === 'learned';
+        row.className = 'yt-sub-wb-row' + (isLearned ? ' learned' : '');
 
         const tierHtml = item.tier && TIER_CLASS[item.tier]
           ? `<span class="yt-sub-tier-badge ${TIER_CLASS[item.tier]}">${TIER_LABEL[item.tier]}</span>`
@@ -2198,33 +2425,68 @@
         const rowBtnsHtml = isSameVideo && item.startTime != null
           ? `<button class="yt-sub-wb-row-play" data-start="${item.startTime}" title="播放此句">▶</button>`
           : '';
-        row.innerHTML = `
+        const learnedBadge = isLearned ? `<span class="yt-sub-wb-learned-badge">✓ 已學會</span>` : '';
+
+        // 主列
+        const main = document.createElement('div');
+        main.className = 'yt-sub-wb-row-main';
+        main.innerHTML = `
           <span class="yt-sub-wb-word${item.noDefinition ? ' no-def' : ''}">${escapeHtml(item.word)}</span>
           ${item.wordZh ? `<span class="yt-sub-wb-zh">${escapeHtml(item.wordZh)}</span>` : ''}
           ${rowBtnsHtml}
           ${tierHtml}
+          ${learnedBadge}
           ${item.count > 1 ? `<span class="yt-sub-wb-meta">×${item.count}</span>` : ''}
           <button class="yt-sub-wb-del" data-word="${escapeHtml(item.word)}" title="刪除">×</button>
         `;
 
-        // 點擊單字：查字典，並在底部附加例句（若有）
+        // 展開詳情區塊
+        const detail = document.createElement('div');
+        detail.className = 'yt-sub-wb-row-detail';
+        if (item.context) {
+          const ctxEl = document.createElement('div');
+          ctxEl.className = 'yt-sub-wb-row-context';
+          ctxEl.textContent = item.context;
+          detail.appendChild(ctxEl);
+        }
+        const learnBtn = document.createElement('button');
+        learnBtn.className = 'yt-sub-wb-learned-btn' + (isLearned ? ' active' : '');
+        learnBtn.textContent = isLearned ? '✓ 已學會' : '標記為已學會';
+        detail.appendChild(learnBtn);
+        row.appendChild(main);
+        row.appendChild(detail);
+
+        // 點擊主列背景：展開 / 收合（排除按鈕與單字）
+        main.addEventListener('click', e => {
+          if (e.target.closest('button, .yt-sub-wb-word')) return;
+          const isExpanding = !row.classList.contains('expanded');
+          // 收合所有其他已展開的卡片並停止 loop
+          listEl.querySelectorAll('.yt-sub-wb-row.expanded').forEach(r => r.classList.remove('expanded'));
+          _stopWbExpandLoop();
+          if (isExpanding) {
+            row.classList.add('expanded');
+            speakWord(item.word);
+            if (settings.wbExpandLoop) _startWbExpandLoop(item);
+          }
+        });
+
+        // 點擊單字：查字典
         if (!item.noDefinition) {
-          row.querySelector('.yt-sub-wb-word').addEventListener('click', e => {
+          main.querySelector('.yt-sub-wb-word').addEventListener('click', e => {
+            e.stopPropagation();
             showWordPopup(item.word, e.target, item);
           });
         }
 
-        // 播放此句按鈕（跳轉到該句）
-        const playBtn = row.querySelector('.yt-sub-wb-row-play');
+        // 播放此句按鈕
+        const playBtn = main.querySelector('.yt-sub-wb-row-play');
         if (playBtn) {
           playBtn.addEventListener('click', e => {
             e.stopPropagation();
             const startTime = parseFloat(playBtn.dataset.start);
             seekTo(startTime);
-            // 循環開著：跟著轉移到新的句子；循環關著：不動
             if (loopingIdx >= 0) {
               const idx = primarySubtitles.findIndex(s => s.startTime === startTime);
-              console.log('[YT-SUB][LOOP] wb-row-play → update loopingIdx=', idx);
               loopingIdx = idx >= 0 ? idx : -1;
               updateCurrentLoopStyle();
             }
@@ -2232,12 +2494,59 @@
         }
 
         // 刪除單字
-        row.querySelector('.yt-sub-wb-del').addEventListener('click', e => {
+        main.querySelector('.yt-sub-wb-del').addEventListener('click', e => {
           e.stopPropagation();
           deleteWord(item.word, row);
         });
 
+        // 已學會按鈕
+        learnBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          toggleLearnedStatus(item.word, learnBtn, row, main);
+        });
+
         listEl.appendChild(row);
+      });
+    });
+  }
+
+  // 切換已學會狀態
+  function toggleLearnedStatus(word, btn, rowEl, mainEl) {
+    chrome.storage.local.get(SAVED_WORDS_KEY, data => {
+      const saved = data[SAVED_WORDS_KEY] || {};
+      if (!saved[word]) return;
+      const nowLearned = saved[word].status !== 'learned';
+      if (nowLearned) saved[word].status = 'learned';
+      else delete saved[word].status;
+      chrome.storage.local.set({ [SAVED_WORDS_KEY]: saved }, () => {
+        // 同步更新記憶體 Set
+        if (nowLearned) _learnedWordSet.add(word);
+        else _learnedWordSet.delete(word);
+        // 同步更新 popup 內的已學會按鈕（若 popup 仍開著）
+        const openPopup = document.getElementById('yt-sub-word-popup');
+        if (openPopup?.style.display !== 'none' && openPopup?.dataset.word === word) {
+          const popupLearnBtn = openPopup.querySelector('.yt-sub-popup-learn-btn');
+          if (popupLearnBtn) {
+            popupLearnBtn.textContent = nowLearned ? '✓ 已學會' : '已學會';
+            popupLearnBtn.classList.toggle('active', nowLearned);
+          }
+        }
+        btn.textContent = nowLearned ? '✓ 已學會' : '標記為已學會';
+        btn.classList.toggle('active', nowLearned);
+        rowEl.classList.toggle('learned', nowLearned);
+        // 同步更新主列的已學會 badge
+        const badge = mainEl.querySelector('.yt-sub-wb-learned-badge');
+        if (nowLearned && !badge) {
+          const b = document.createElement('span');
+          b.className = 'yt-sub-wb-learned-badge';
+          b.textContent = '✓ 已學會';
+          // 插在 count（×N）之前；若無 count 則插在刪除按鈕之前
+          const countEl = mainEl.querySelector('.yt-sub-wb-meta');
+          const delBtn = mainEl.querySelector('.yt-sub-wb-del');
+          mainEl.insertBefore(b, countEl || delBtn);
+        } else if (!nowLearned && badge) {
+          badge.remove();
+        }
       });
     });
   }
@@ -2360,7 +2669,7 @@
       if (done < total) await new Promise(r => setTimeout(r, 400));
     }
 
-    if (!job.cancelled && statusEl) {
+    if (!job.cancelled && statusEl && !customSubtitleActive) {
       const langName = ONBOARDING_LEARN_LANGS.find(l => l.code === targetLang)?.label || targetLang;
       statusEl.textContent = `主：${langName}（${total} 句，Google 翻譯）`;
       statusEl.className = 'yt-sub-status success';
@@ -2428,7 +2737,7 @@
         return;
       }
       if (!syncInterval) startSync();
-      if (statusEl) {
+      if (statusEl && !customSubtitleActive) {
         statusEl.textContent = `主：${primaryName}（${subs.length} 句）｜翻譯中 ${done}/${indices.length}`;
         statusEl.className = 'yt-sub-status success';
       }
@@ -2440,7 +2749,7 @@
       const keys = Object.keys(translationCache);
       if (keys.length >= TRANSLATION_CACHE_MAX) delete translationCache[keys[0]];
       translationCache[cacheKey] = [...secondarySubtitles];
-      if (statusEl) {
+      if (statusEl && !customSubtitleActive) {
         statusEl.textContent = `主：${primaryName}（${subs.length} 句）`;
         statusEl.className = 'yt-sub-status success';
       }
@@ -2475,16 +2784,23 @@
     const item = document.querySelector(`.yt-sub-item[data-index="${primaryIdx}"]`);
     if (!item) return;
     let secEl = item.querySelector('.yt-sub-text-secondary');
-    if (secText && settings.dualEnabled) {
+    const displaySecText = filterSubText(secText);
+    if (displaySecText && settings.dualEnabled) {
       if (!secEl) {
         secEl = document.createElement('div');
         secEl.className = 'yt-sub-text-secondary';
         item.querySelector('.yt-sub-texts')?.appendChild(secEl);
       }
-      secEl.textContent = secText;
+      secEl.textContent = displaySecText;
     } else if (secEl) {
       secEl.remove();
     }
+  }
+
+  // ===== 狀聲詞過濾 =====
+  function filterSubText(text) {
+    if (!settings.filterSoundDesc || !text) return text;
+    return text.replace(/\[.*?\]/g, '').replace(/\s{2,}/g, ' ').trim();
   }
 
   // ===== 單字 Tokenize =====
@@ -2508,7 +2824,12 @@
           // 查字典時還原為原型（shining → shine），讓字典結果與生字本一致
           const clean = lemmatize(token.toLowerCase().replace(/'s$/i, '').replace(/['-]$/, ''));
           if (settings.wordSpeak) speakWord(token);
-          showWordPopup(clean, span, { _originalToken: token.toLowerCase() });
+          showWordPopup(clean, span, {
+            _originalToken: token.toLowerCase(),
+            context: text,
+            startTime: startTime,
+            videoId: new URLSearchParams(location.search).get('v') || '',
+          });
         });
         container.appendChild(span);
       } else {
@@ -2523,9 +2844,10 @@
     if (_windowContextMenuBound) return;
     _windowContextMenuBound = true;
     window.addEventListener('contextmenu', e => {
-      const inOverlay = e.target.closest('#yt-sub-overlay');
-      const inList   = e.target.closest('#yt-sub-list');
-      if (!inOverlay && !inList) return;
+      const inOverlay  = e.target.closest('#yt-sub-overlay');
+      const inList     = e.target.closest('#yt-sub-list');
+      const inSubtitle = e.target.closest('#yt-sub-subtitle-mode');
+      if (!inOverlay && !inList && !inSubtitle) return;
       handleWordContextMenu(e);
     }, true);
   }
@@ -2703,28 +3025,39 @@
       updateCurrentLoopStyle();
     });
 
-    // 上一句：用 _currentPrimIdx（sync loop 追蹤的實際顯示 index），避免 gap 時 findActiveIndex 回傳 -1 跳到句首
+    // 上一句
     document.getElementById('yt-sub-ov-prev').addEventListener('click', e => {
       e.stopPropagation();
+      if (!primarySubtitles.length) return;
       loopingIdx = -1;
       updateCurrentLoopStyle();
       const video = document.querySelector('video');
-      const cur = findLastStartedIndex(primarySubtitles, (video?.currentTime || 0) + (settings.subtitleOffset || 0));
+      const wasPlaying = video && !video.paused;
+      // 播放中先暫停，確保 currentTime 凍結後再計算當前句，避免 seek async 跑錯句
+      if (wasPlaying) video.pause();
+      const cur = _navLockedIdx >= 0 ? _navLockedIdx
+        : findLastStartedIndex(primarySubtitles, (video?.currentTime || 0) + (settings.subtitleOffset || 0));
       const newIdx = Math.max(0, cur - 1);
       console.log('[YT-SUB][NAV] < clicked cur=', cur, '→ newIdx=', newIdx, 'target=', primarySubtitles[newIdx]?.text);
+      _navLockedIdx = newIdx;
+      _navLockUntil = Date.now() + 800;
       seekTo(primarySubtitles[newIdx].startTime);
+      if (wasPlaying) video.play().catch(() => {});
     });
 
-    // 下一句：從 video.currentTime 即時算出目前在哪句，直接 +1，不依賴 sync loop 快取
+    // 下一句
     document.getElementById('yt-sub-ov-next').addEventListener('click', e => {
       e.stopPropagation();
+      if (!primarySubtitles.length) return;
       loopingIdx = -1;
       updateCurrentLoopStyle();
       const video = document.querySelector('video');
       const cur = findLastStartedIndex(primarySubtitles, (video?.currentTime || 0) + (settings.subtitleOffset || 0));
       const nextIdx = Math.min(primarySubtitles.length - 1, cur + 1);
       console.log('[YT-SUB][NAV] > clicked cur=', cur, '→ nextIdx=', nextIdx, 'target=', primarySubtitles[nextIdx]?.text);
-      if (nextIdx !== cur) seekTo(primarySubtitles[nextIdx].startTime);
+      if (nextIdx !== cur) {
+        seekTo(primarySubtitles[nextIdx].startTime);
+      }
     });
   }
 
@@ -2735,11 +3068,12 @@
   let _lastLoopingState = false;
   function updateCurrentLoopStyle() {
     const looping = loopingIdx >= 0;
+    // 不論狀態是否改變，都更新 row 層 loop 按鈕（因為可能切換了不同的循環句）
+    updateWbLoopBtn();
     if (looping === _lastLoopingState) return;
     _lastLoopingState = looping;
     document.getElementById('yt-sub-current')?.classList.toggle('looping', looping);
     document.getElementById('yt-sub-ov-body')?.classList.toggle('looping', looping);
-    updateWbLoopBtn();
   }
 
   function updateWbLoopBtn() {
@@ -2754,6 +3088,13 @@
     const loopingStartTime = loopingIdx >= 0 ? primarySubtitles[loopingIdx]?.startTime : null;
     document.querySelectorAll('.yt-sub-wb-row-loop').forEach(b => {
       const isThis = loopingStartTime != null && parseFloat(b.dataset.start) === loopingStartTime;
+      b.classList.toggle('active', isThis);
+      b.title = isThis ? '停止循環' : '循環此句';
+    });
+    // 字幕模式 loop 按鈕（依 data-idx 對比 loopingIdx）
+    document.querySelectorAll('.ysm-loop-btn').forEach(b => {
+      const row = b.closest('.ysm-row');
+      const isThis = row != null && Number(row.dataset.idx) === loopingIdx;
       b.classList.toggle('active', isThis);
       b.title = isThis ? '停止循環' : '循環此句';
     });
@@ -2915,6 +3256,7 @@
   let _userTier       = 'guest';   // 'guest' | 'user' | 'editor'  三層權限
   let _loopActive     = false;     // 循環播放是否啟用
   let _loopTimeoutId  = null;      // 循環播放定時器 ID
+  let _ysmTimeUpdateHandler = null; // enterSubtitleMode 加的 timeupdate handler（退出時移除）
   let _yemSyncHandler      = null; // enterEditMode 加的 timeupdate handler（退出時移除）
   let _yemMainHandler      = null; // enterEditMode 加的 loop/autopause handler（退出時移除）
 
@@ -2987,6 +3329,7 @@
 
   /** 在 sidebar 狀態列顯示「需登入才能使用翻譯」提示 */
   function _showTranslationGate() {
+    if (customSubtitleActive) return; // 本地/社群字幕使用中，不蓋掉已還原狀態
     const statusEl = document.getElementById('yt-sub-status');
     if (!statusEl) return;
     statusEl.className = 'yt-sub-status';
@@ -3041,6 +3384,10 @@
         </div>
       </div>
       <div class="ysm-main">
+        <div class="ysm-search-bar">
+          <input class="ysm-search" id="ysm-search" type="text" placeholder="搜尋句子字頭…" autocomplete="off" spellcheck="false">
+          <span class="ysm-search-count" id="ysm-search-count"></span>
+        </div>
         <div class="ysm-subtitle-list" id="ysm-subtitle-list"></div>
       </div>
       <button class="ysm-close-btn" id="ysm-close-btn" title="還原正常模式">✕</button>
@@ -3063,10 +3410,15 @@
 
     // 同步語言選單
     const langSel = overlay.querySelector('#ysm-lang-select');
-    document.querySelector('#yt-sub-langs select')?.querySelectorAll('option').forEach(o => {
-      langSel.appendChild(o.cloneNode(true));
-    });
-    langSel.value = document.querySelector('#yt-sub-langs select')?.value || '';
+    const ytLangSel = document.querySelector('#yt-sub-langs select');
+    if (ytLangSel) {
+      ytLangSel.querySelectorAll('option').forEach(o => langSel.appendChild(o.cloneNode(true)));
+      langSel.value = ytLangSel.value || '';
+    } else if (customSubtitleActive) {
+      // 無 YT 字幕但自定義/社群字幕啟用中：顯示來源標籤
+      const srcVal = document.getElementById('yt-sub-source-select')?.value || 'custom';
+      _ysmSetCustomLabel(langSel, srcVal);
+    }
     langSel.addEventListener('change', () => {
       const srcSel = document.querySelector('#yt-sub-langs select');
       if (srcSel) { srcSel.value = langSel.value; srcSel.dispatchEvent(new Event('change')); }
@@ -3090,34 +3442,65 @@
       });
     });
 
+    // 搜尋框：字頭前綴過濾
+    overlay.querySelector('#ysm-search').addEventListener('input', () => {
+      _renderSubtitleModeList(overlay.querySelector('#ysm-subtitle-list'));
+    });
+
     // 播放控制
     const playBtn  = overlay.querySelector('#ysm-play-btn');
     const scrubber = overlay.querySelector('#ysm-scrubber');
     const timeEl   = overlay.querySelector('#ysm-time');
-    const vid = document.querySelector('#movie_player video') || video;
+    // 影片已被搬到 ysm-video-box，優先用 .ysm-real-video 抓，再 fallback 到原始 ref
+    const _ysmGetVid = () => document.querySelector('.ysm-real-video') || video;
 
     function _ysmSyncControls() {
-      if (!vid) return;
-      playBtn.textContent = vid.paused ? '▶' : '⏸';
-      scrubber.max = vid.duration || 100;
-      scrubber.value = vid.currentTime;
-      const m = Math.floor(vid.currentTime / 60);
-      const s = Math.floor(vid.currentTime % 60).toString().padStart(2, '0');
+      const v = _ysmGetVid();
+      if (!v) return;
+      playBtn.textContent = v.paused ? '▶' : '⏸';
+      scrubber.max = v.duration || 100;
+      scrubber.value = v.currentTime;
+      const m = Math.floor(v.currentTime / 60);
+      const s = Math.floor(v.currentTime % 60).toString().padStart(2, '0');
       timeEl.textContent = `${m}:${s}`;
     }
-    playBtn.addEventListener('click', () => vid?.paused ? vid.play() : vid?.pause());
-    scrubber.addEventListener('input', () => { if (vid) vid.currentTime = scrubber.value; });
-    if (vid) vid.addEventListener('timeupdate', _ysmSyncControls);
+    playBtn.addEventListener('click', () => {
+      const v = _ysmGetVid();
+      if (!v) return;
+      v.paused ? v.play().catch(() => {}) : v.pause();
+    });
+    scrubber.addEventListener('input', () => {
+      const v = _ysmGetVid();
+      if (v) v.currentTime = Number(scrubber.value);
+    });
+    const _vidRef = _ysmGetVid();
+    _ysmTimeUpdateHandler = _ysmSyncControls;
+    if (_vidRef) _vidRef.addEventListener('timeupdate', _ysmSyncControls);
     _ysmSyncControls();
 
-    // 高亮同步（使用現有 sync 機制觸發）
+    // 高亮 + loop 按鈕視覺同步（只有 active index 變化時才 scroll）
+    let _ysmLastActiveIdx = -1;
     _ysmSyncInterval = setInterval(() => {
-      if (!primarySubtitles.length || !vid) return;
-      const t = vid.currentTime;
-      const idx = primarySubtitles.findIndex(s => t >= s.startTime && t < (s.endTime || s.startTime + 5));
+      const v = _ysmGetVid();
+      if (!primarySubtitles.length || !v) return;
+      const t = v.currentTime;
       const rows = overlay.querySelectorAll('.ysm-row');
-      rows.forEach((r, i) => r.classList.toggle('ysm-active', i === idx));
-      if (idx >= 0) rows[idx]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      let activeRow = null;
+      let activeIdx = -1;
+      rows.forEach(r => {
+        const i = Number(r.dataset.idx);
+        const sub = primarySubtitles[i];
+        if (!sub) return;
+        const isActive = t >= sub.startTime && t < sub.startTime + (sub.duration || 5);
+        r.classList.toggle('ysm-active', isActive);
+        if (isActive) { activeRow = r; activeIdx = i; }
+        r.querySelector('.ysm-loop-btn')?.classList.toggle('active', i === loopingIdx);
+      });
+      // 只在句子切換時才自動捲動，避免鎖住用戶的手動滾動
+      if (activeRow && activeIdx !== _ysmLastActiveIdx) {
+        _ysmLastActiveIdx = activeIdx;
+        activeRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     }, 300);
 
     overlay.querySelector('#ysm-close-btn').addEventListener('click', async () => {
@@ -3128,24 +3511,91 @@
 
   let _ysmSyncInterval = null;
 
+  // 字頭前綴比對：句子中任意一個詞以 query 開頭即視為命中
+  function _ysmWordPrefixMatch(text, query) {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return text.toLowerCase().split(/\s+/).some(w => w.startsWith(q));
+  }
+
   function _renderSubtitleModeList(container) {
     container.innerHTML = '';
-    primarySubtitles.forEach((sub, i) => {
+    const searchQ = (document.getElementById('ysm-search')?.value || '').trim();
+    const countEl = document.getElementById('ysm-search-count');
+
+    // 過濾：有搜尋詞時只顯示命中的句子
+    const filtered = searchQ
+      ? primarySubtitles.map((sub, i) => ({ sub, i })).filter(({ sub }) => _ysmWordPrefixMatch(filterSubText(sub.text), searchQ))
+      : primarySubtitles.map((sub, i) => ({ sub, i }));
+
+    if (countEl) {
+      countEl.textContent = searchQ ? `${filtered.length} / ${primarySubtitles.length} 句` : '';
+    }
+
+    filtered.forEach(({ sub, i }) => {
       const row = document.createElement('div');
       row.className = 'ysm-row';
       row.dataset.idx = i;
-      const ts = _fmtTime(sub.startTime);
-      const sec = settings.dualEnabled && secondarySubtitles[i] ? `<div class="ysm-secondary">${secondarySubtitles[i].text || ''}</div>` : '';
-      row.innerHTML = `<span class="ysm-ts">${ts}</span><div class="ysm-texts"><div class="ysm-primary">${sub.text}</div>${sec}</div><button class="ysm-loop-btn" title="循環此句">⇄</button>`;
-      row.querySelector('.ysm-loop-btn').addEventListener('click', () => {
-        const vid = document.querySelector('#movie_player video');
-        if (vid) { vid.currentTime = sub.startTime; vid.play(); loopingIdx = i; updateCurrentLoopStyle(); }
+
+      const tsEl = document.createElement('span');
+      tsEl.className = 'ysm-ts';
+      tsEl.textContent = _fmtTime(sub.startTime);
+
+      const texts = document.createElement('div');
+      texts.className = 'ysm-texts';
+
+      const primEl = document.createElement('div');
+      primEl.className = 'ysm-primary';
+      // 使用 buildTokenizedText 開啟生字卡功能
+      buildTokenizedText(primEl, filterSubText(sub.text), sub.startTime);
+      texts.appendChild(primEl);
+
+      if (settings.dualEnabled && secondarySubtitles[i]) {
+        const secEl = document.createElement('div');
+        secEl.className = 'ysm-secondary';
+        secEl.textContent = filterSubText(secondarySubtitles[i].text) || '';
+        texts.appendChild(secEl);
+      }
+
+      const loopBtn = document.createElement('button');
+      loopBtn.className = 'ysm-loop-btn' + (i === loopingIdx ? ' active' : '');
+      loopBtn.title = i === loopingIdx ? '停止循環' : '循環此句';
+      loopBtn.textContent = '⇄';
+
+      row.appendChild(tsEl);
+      row.appendChild(texts);
+      row.appendChild(loopBtn);
+
+      // 取得字幕模式下的影片元素（已搬離 #movie_player）
+      const _getV = () => document.querySelector('.ysm-real-video') || document.querySelector('video');
+
+      // 點擊 loop 按鈕：切換循環（再次點擊取消）
+      loopBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        const v = _getV();
+        if (loopingIdx === i) {
+          loopingIdx = -1;
+        } else {
+          loopingIdx = i;
+          if (v) { v.currentTime = sub.startTime; v.play().catch(() => {}); }
+        }
+        updateCurrentLoopStyle();
       });
+
+      // 點擊 timestamp：跳轉到該句
+      tsEl.addEventListener('click', e => {
+        e.stopPropagation();
+        const v = _getV();
+        if (v) v.currentTime = sub.startTime;
+      });
+
+      // 點擊列背景（非按鈕、非單字、非 timestamp）：跳轉到該句
       row.addEventListener('click', e => {
-        if (e.target.closest('.ysm-loop-btn')) return;
-        const vid = document.querySelector('#movie_player video');
-        if (vid) vid.currentTime = sub.startTime;
+        if (e.target.closest('.ysm-loop-btn, .yt-sub-word, .ysm-ts')) return;
+        const v = _getV();
+        if (v) v.currentTime = sub.startTime;
       });
+
       container.appendChild(row);
     });
   }
@@ -3159,6 +3609,12 @@
   function exitSubtitleMode() {
     clearInterval(_ysmSyncInterval);
     _ysmSyncInterval = null;
+    // 移除 timeupdate handler，避免退出後繼續執行
+    if (_ysmTimeUpdateHandler) {
+      const v = document.querySelector('.ysm-real-video') || document.querySelector('video');
+      v?.removeEventListener('timeupdate', _ysmTimeUpdateHandler);
+      _ysmTimeUpdateHandler = null;
+    }
     // 把 video 歸還給 YouTube player，並恢復 player 可見度
     const video = document.querySelector('.ysm-real-video');
     const player = document.querySelector('#movie_player');
@@ -3729,11 +4185,11 @@
       const curPrimEl = document.getElementById('yt-sub-cur-primary');
       const curSecEl = document.getElementById('yt-sub-cur-secondary');
       const curWrap = document.getElementById('yt-sub-current');
-      const secText = secSub && settings.dualEnabled ? secSub.text : '';
+      const secText = secSub && settings.dualEnabled ? filterSubText(secSub.text) : '';
       const wrapActive = primSub !== null || (secSub !== null && settings.dualEnabled);
 
       if (curPrimEl) {
-        const newText = primSub ? primSub.text : '';
+        const newText = primSub ? filterSubText(primSub.text) : '';
         if (curPrimEl.dataset.text !== newText) {
           curPrimEl.dataset.text = newText;
           curPrimEl.innerHTML = '';
@@ -3754,30 +4210,34 @@
       // 單句循環：不依賴 primSub，句子間空隙也能正確 loop 回去
       if (settings.loopSentence && loopingIdx >= 0) {
         const loopSub = primarySubtitles[loopingIdx];
-        if (loopSub && t >= loopSub.startTime + loopSub.duration) {
+        if (loopSub && t >= loopSub.startTime + Math.max(loopSub.duration || 0, 1)) {
           video.currentTime = loopSub.startTime;
         }
       }
 
-      // 更新目前顯示的 index（供 >/<  按鈕直接使用）
-      // 手動跳句後，等 video 真正抵達目標 index 才解除鎖定並更新
-      if (_navedToIdx >= 0) {
-        // 用 startTime 判斷是否抵達目標，不依賴 findActiveIndex（overlapping subtitle 會讓它永遠回傳舊 index）
-        const navTarget = primarySubtitles[_navedToIdx];
-        if (navTarget && tSub >= navTarget.startTime) {
-          // 抵達目標：_currentPrimIdx 取 max，避免 findActiveIndex 因重疊給出較小 index
-          _currentPrimIdx = Math.max(primIdx >= 0 ? primIdx : _navedToIdx, _navedToIdx);
-          _navedToIdx = -1;
+      // 更新目前顯示的 index
+      if (Date.now() < _navLockUntil) {
+        // 導航鎖定中（seek async 尚未完成）：顯示目標句，不讓 video.currentTime 蓋掉
+        _currentPrimIdx = _navLockedIdx;
+      } else {
+        // 鎖定結束：解除並恢復正常追蹤
+        if (_navLockedIdx >= 0) _navLockedIdx = -1;
+        if (_navedToIdx >= 0) {
+          // 舊的 forward-seek 鎖（其他地方設的 _navedToIdx）：等 video 抵達後解鎖
+          const navTarget = primarySubtitles[_navedToIdx];
+          if (navTarget && tSub >= navTarget.startTime) {
+            _currentPrimIdx = Math.max(primIdx >= 0 ? primIdx : _navedToIdx, _navedToIdx);
+            _navedToIdx = -1;
+          }
+        } else if (primIdx >= 0) {
+          _currentPrimIdx = primIdx;
         }
-        // 尚未抵達，不更新 _currentPrimIdx
-      } else if (primIdx >= 0) {
-        _currentPrimIdx = primIdx;
       }
 
       if (settings.overlayEnabled) {
         if (!document.getElementById('yt-sub-overlay')) createOverlay();
         updateOverlay(
-          primSub ? primSub.text : '',
+          primSub ? filterSubText(primSub.text) : '',
           secText,
           primIdx
         );
@@ -3948,9 +4408,18 @@
         : parseJson3(event.data.data);
 
       if (tag === 'primary') {
-        _rawPrimarySubtitles = parsed;
-        primarySubtitles = settings.extendSubtitles ? extendSubtitleDurations(parsed) : parsed;
+        if (!customSubtitleActive) {
+          // 本地/社群字幕啟用中，不讓 YouTube 字幕覆蓋
+          _rawPrimarySubtitles = parsed;
+          primarySubtitles = settings.extendSubtitles ? extendSubtitleDurations(parsed) : parsed;
+        }
         applyOverlay(); // 有字幕了，啟用 overlay 並隱藏原生字幕
+        if (customSubtitleActive) {
+          // 本地字幕已在位，不更新狀態文字和翻譯流程
+          renderSubtitleList();
+          startSync();
+          return;
+        }
         if (pendingPrimaryTranslation) {
           // 主字幕 Google Translate 路徑：原語言已載，開始翻譯成偏好語言
           const { targetLang } = pendingPrimaryTranslation;
@@ -4008,6 +4477,8 @@
       _forcedTheater = false;
       _currentPrimIdx = -1;
       _navedToIdx = -1;
+      _navLockedIdx = -1;
+      _navLockUntil = 0;
       primarySubtitles = [];
       _rawPrimarySubtitles = [];
       secondarySubtitles = [];
@@ -4046,6 +4517,37 @@
     if (e.key === 'ArrowRight' && loopingIdx >= 0) {
       loopingIdx = -1;
       updateCurrentLoopStyle();
+    }
+
+    // A/D 快捷鍵：上一句 / 下一句（需開啟設定且焦點不在輸入框時才觸發）
+    if (settings.keyboardNav && !primarySubtitles.length) return;
+    if (settings.keyboardNav && (e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D')) {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (document.activeElement?.isContentEditable) return;
+      e.preventDefault();
+
+      const video = document.querySelector('video');
+      loopingIdx = -1;
+      updateCurrentLoopStyle();
+
+      if (e.key === 'a' || e.key === 'A') {
+        // 上一句：先暫停確保 currentTime 凍結，再計算當前句，seek 後 resume
+        const wasPlaying = video && !video.paused;
+        if (wasPlaying) video.pause();
+        const cur = _navLockedIdx >= 0 ? _navLockedIdx
+          : findLastStartedIndex(primarySubtitles, (video?.currentTime || 0) + (settings.subtitleOffset || 0));
+        const newIdx = Math.max(0, cur - 1);
+        _navLockedIdx = newIdx;
+        _navLockUntil = Date.now() + 800;
+        seekTo(primarySubtitles[newIdx].startTime);
+        if (wasPlaying) video.play().catch(() => {});
+      } else {
+        // 下一句：不使用鎖定機制，直接讀 video.currentTime（forward seek 不需補償 async 延遲）
+        const cur = findLastStartedIndex(primarySubtitles, (video?.currentTime || 0) + (settings.subtitleOffset || 0));
+        const nextIdx = Math.min(primarySubtitles.length - 1, cur + 1);
+        if (nextIdx !== cur) seekTo(primarySubtitles[nextIdx].startTime);
+      }
     }
   });
 
@@ -4107,6 +4609,7 @@
       const savedPrimary = Array.isArray(savedEdit) ? savedEdit : savedEdit?.primarySubtitles;
       const savedSecondary = Array.isArray(savedEdit) ? [] : (savedEdit?.secondarySubtitles || []);
       if (savedPrimary?.length) {
+        customSubtitleActive = true;
         primarySubtitles = savedPrimary;
         _rawPrimarySubtitles = savedPrimary;
         if (savedSecondary.length) {
@@ -4297,6 +4800,18 @@
   }
 
   /**
+   * 將 ysm-lang-select 設為自定義/社群字幕標籤（無 YT tracks 時使用）
+   */
+  function _ysmSetCustomLabel(langSel, srcVal) {
+    langSel.innerHTML = '';
+    const opt = document.createElement('option');
+    opt.value = srcVal;
+    opt.textContent = srcVal === 'community' ? '👥 社群字幕' : '✏ 本地字幕';
+    langSel.appendChild(opt);
+    langSel.value = srcVal;
+  }
+
+  /**
    * 標示目前使用中的字幕來源按鈕（紫色底色），另一個恢復預設
    * @param {'custom'|'community'|null} source
    */
@@ -4310,6 +4825,17 @@
     }
     // 有自定義/社群字幕來源時，封鎖 YT 字幕覆蓋
     customSubtitleActive = source !== null;
+    // 若字幕模式 overlay 已開啟且無 YT tracks，同步更新 ysm-lang-select 顯示
+    const ysmLangSel = document.querySelector('#ysm-lang-select');
+    const ytLangSel  = document.querySelector('#yt-sub-langs select');
+    if (ysmLangSel && !ytLangSel) {
+      if (source) {
+        _ysmSetCustomLabel(ysmLangSel, source);
+      } else {
+        // 切回預設時清空自訂標籤（無 YT tracks 時留空，避免殘留舊來源名稱）
+        ysmLangSel.innerHTML = '';
+      }
+    }
   }
 
   // ===== SRT 匯入 =====
