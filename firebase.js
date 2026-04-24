@@ -126,9 +126,17 @@ async function _refreshIdToken(refreshToken) {
   return _idToken;
 }
 
-// ===== 取得有效 ID token（過期自動更新）=====
+// ===== 取得有效 ID token（過期自動更新，service worker 重啟後自動從 storage 恢復）=====
 async function _getIdToken() {
-  if (!_idToken) throw new Error('未登入');
+  if (!_idToken) {
+    // service worker 被瀏覽器終止重啟後，in-memory token 遺失 → 從 storage 嘗試恢復
+    const { firebaseUser, firebaseRefreshToken } = await chrome.storage.local.get([
+      'firebaseUser', 'firebaseRefreshToken',
+    ]);
+    if (!firebaseRefreshToken) throw new Error('未登入');
+    if (firebaseUser) { _userInfo = firebaseUser; _uid = firebaseUser.uid; }
+    await _refreshIdToken(firebaseRefreshToken);
+  }
   if (Date.now() > _tokenExpiry) {
     const { firebaseRefreshToken } = await chrome.storage.local.get('firebaseRefreshToken');
     await _refreshIdToken(firebaseRefreshToken);
@@ -230,14 +238,46 @@ export async function getCollection(collectionPath, { orderBy, limit } = {}) {
     },
   };
   const parentPath = parts.slice(0, -1).join('/');
-  const res = await fetch(`${FIRESTORE_BASE}/${parentPath}:runQuery`, {
+  const queryUrl = parentPath
+    ? `${FIRESTORE_BASE}/${parentPath}:runQuery`
+    : `${FIRESTORE_BASE}:runQuery`;
+  const res = await fetch(queryUrl, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
     body:    JSON.stringify(query),
   });
   const json = await res.json();
-  if (!Array.isArray(json)) throw new Error('查詢失敗');
+  if (!Array.isArray(json)) throw new Error(json?.error?.message || '查詢失敗');
   return json.filter(r => r.document).map(r => _fromFsDoc(r.document));
+}
+
+// 跨集合群組公開查詢（allDescendants: true，不需登入）
+// 回傳的每筆資料額外帶 _parentId（上一層 doc ID，例如 videoId）
+// select: ['field1','field2'] 可限制回傳欄位，避免拉回大量字幕內容
+export async function getCollectionGroupPublic(collectionId, { orderBy, limit, select } = {}) {
+  const query = {
+    structuredQuery: {
+      select:  select ? { fields: select.map(f => ({ fieldPath: f })) } : undefined,
+      from:    [{ collectionId, allDescendants: true }],
+      orderBy: orderBy ? [{ field: { fieldPath: orderBy.field }, direction: orderBy.dir || 'DESCENDING' }] : undefined,
+      limit:   limit || 1000,
+    },
+  };
+  const url = `${FIRESTORE_BASE}:runQuery?key=${FIREBASE_CONFIG.apiKey}`;
+  const res = await fetch(url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(query),
+  });
+  const json = await res.json();
+  if (!Array.isArray(json)) throw new Error('查詢失敗');
+  return json.filter(r => r.document).map(r => {
+    const segments = r.document.name.split('/');
+    // path: ...documents/customSubtitles/{videoId}/entries/{docId}
+    // segments from end: [docId, entries, videoId, customSubtitles, documents, ...]
+    const parentId = segments[segments.length - 3] ?? null;
+    return { ...(_fromFsDoc(r.document)), _parentId: parentId };
+  });
 }
 
 // 公開查詢（不需登入，適用 Firestore rules allow read: if true 的 collection）
@@ -251,8 +291,10 @@ export async function getCollectionPublic(collectionPath, { orderBy, limit } = {
     },
   };
   const parentPath = parts.slice(0, -1).join('/');
-  // 使用 apiKey 參數取代 Bearer token，Firestore REST API 支援此方式進行公開讀取
-  const url = `${FIRESTORE_BASE}/${parentPath}:runQuery?key=${FIREBASE_CONFIG.apiKey}`;
+  const queryUrl = parentPath
+    ? `${FIRESTORE_BASE}/${parentPath}:runQuery`
+    : `${FIRESTORE_BASE}:runQuery`;
+  const url = `${queryUrl}?key=${FIREBASE_CONFIG.apiKey}`;
   const res = await fetch(url, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -270,4 +312,30 @@ export async function deleteDoc(docPath) {
     method:  'DELETE',
     headers: { 'Authorization': `Bearer ${token}` },
   });
+}
+
+// 讀取單一 doc（不存在回傳 null）
+export async function getDoc(docPath) {
+  const token = await _getIdToken();
+  const res   = await fetch(`${FIRESTORE_BASE}/${docPath}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  if (res.status === 404) return null;
+  const json = await res.json();
+  if (json.error) return null;
+  return _fromFsDoc(json);
+}
+
+// 部分更新 doc（PATCH 只更新指定欄位）
+export async function updateDoc(docPath, data) {
+  const token  = await _getIdToken();
+  const fields = Object.keys(data).map(k => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&');
+  const res    = await fetch(`${FIRESTORE_BASE}/${docPath}?${fields}`, {
+    method:  'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body:    JSON.stringify(_toFsDoc(data)),
+  });
+  const json = await res.json();
+  if (json.error) throw new Error(json.error.message);
+  return _fromFsDoc(json);
 }

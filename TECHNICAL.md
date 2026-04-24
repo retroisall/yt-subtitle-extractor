@@ -296,6 +296,7 @@ scheduleNextTranslationBatch()
 | **OAuth nonce 參數不相容** | `launchWebAuthFlow` 使用 `response_type=token`（implicit flow），不支援 nonce 參數（nonce 只用於 id_token flow）；加了 nonce 後 Google 回傳「Parameter not allowed for this message type: nonce」 | 移除 OAuth URL 中的 nonce 參數 |
 | **Chrome App OAuth vs Web Application** | 建立 OAuth client 時若選「Chrome App」類型，Google 要求上架 Chrome Web Store 才允許使用；開發中套件無法登入 | 改用「Web Application」類型，將 `https://<extensionId>.chromiumapp.org/` 加入授權重新導向 URI |
 | **Service worker 重啟導致登入狀態消失** | MV3 service worker 閒置後會被 Chrome 終止，記憶體中的 `_idToken`、`_userInfo` 全部清空；下次啟動時 content.js 的 `fb_getUser` 在 `restoreSession` 完成前就發出，拿到 null 誤判未登入 | content.js 初始化時若第一次 `fb_getUser` 回傳 null，延遲 1.5 秒後重試；同時在 click handler 中也補呼叫 `updateAccountUI` 確保 UI 同步 |
+| **SW 重啟後 share/權限 handler 403** | `fb_shareSubtitle`、`fb_registerEditorPermission` 等 5 個 handler 直接呼叫同步 `getCurrentUser()`，未等待 `_sessionReady`；SW 重啟後 `_userInfo` 為 null，即使 `_getIdToken()` 能從 storage 自動恢復 token，`getCurrentUser()` 仍回傳 null 導致提前返回「未登入」，或在 token 已存在但 `_userInfo` 尚未設定時，Firestore `uploaderUid` 欄位來源有誤造成 rule 403 | 所有需要登入的 handler 改以 `_sessionReady.then()` 包裝，確保 `restoreSession()` 完成後才進行 user check；受影響 handler：`fb_shareSubtitle`、`fb_registerEditorPermission`、`fb_checkEditorPermission`、`fb_getEditorPermissions`、`fb_setEditorPermission` |
 | **Firestore PATCH 覆寫欄位** | 未設 `updateMask` 的 PATCH 請求會清除目標文件的所有欄位後再寫入，若資料有 race condition 可能導致欄位遺失 | 已知問題，目前資料模型以 word 為單位整筆覆寫，可接受；未來若有 partial update 需求再補 updateMask |
 | **LED 初始狀態錯誤** | `expandSidebar()` 不呼叫 `updateBallDot`，LED 停在 idle；`startSync()` 啟動有延遲，中間狀態空白或殘留舊值 | 找到字幕時先 `setLedState('loading')` 再 `expandSidebar()`，`startSync()` 啟動時再切換成 `has-sub` 或 `paused` |
 
@@ -645,4 +646,73 @@ function updateCurrentLoopStyle() {
 ```
 
 `updateWbLoopBtn` 同時更新 `.yt-sub-wb-row-loop`（生字本列）和 `.ysm-loop-btn`（字幕模式列）。
+
+---
+
+### YouTube Popup 遮擋：跨 Isolated World 的坑
+
+**問題**：側邊欄 `z-index: 9999` 蓋住 YouTube 通知/帳號等 popup。
+
+**第一次嘗試（失敗）**：在 `content.js`（isolated world）用 `MutationObserver` 監聽 `ytd-popup-container`，偵測到子元素出現時把 `#yt-sub-wrapper` 的 `z-index` 降到 `1000`。
+
+**QA 驗證方式（失敗）**：在測試中 `document.createElement('tp-yt-iron-dropdown')` 加入 `ytd-popup-container`，等 MutationObserver 觸發。測試通過，但實際截圖仍然遮擋。
+
+---
+
+**踩坑 1：Polymer 自定義元素 connectedCallback 會立刻覆寫屬性**
+
+用 `document.createElement('tp-yt-iron-dropdown')` 建立元素後，Polymer 的 `connectedCallback` 會在 append 到 DOM 時**自動把 `aria-hidden` 設回 `"true"`**。  
+所以 `popup.querySelector('tp-yt-iron-dropdown:not([aria-hidden="true"])')` 永遠找不到。
+
+**驗證方式**：
+```javascript
+const d = document.createElement('tp-yt-iron-dropdown');
+d.setAttribute('aria-hidden', 'false');
+popup.appendChild(d);
+// 立刻查詢 → null，因為 connectedCallback 已把屬性改掉
+const found = popup.querySelector('tp-yt-iron-dropdown:not([aria-hidden="true"])'); // null
+```
+
+**正確測試方式**：找頁面上**已存在**的 dropdown，直接改其 `aria-hidden` 屬性：
+```javascript
+const existing = document.querySelector('tp-yt-iron-dropdown'); // 已有，aria-hidden="true"
+existing.setAttribute('aria-hidden', 'false'); // 模擬 popup 開啟
+```
+
+---
+
+**踩坑 2：MutationObserver 在 isolated world 無法可靠偵測 page context 的 DOM 變動**
+
+即使 MutationObserver 在 content script（isolated world）監聽 `document.body`，當 **page context** 修改 DOM 時，observer 不一定會即時觸發（V8 跨 context 的 microtask 調度問題）。
+
+**解法**：改用 `setInterval` 輪詢，每 150ms 執行一次 `_ytPopupIsOpen()`。輪詢在 isolated world 裡是穩定的，不依賴跨 world 的 MutationObserver 觸發。
+
+```javascript
+let _lastPopupOpen = false;
+setInterval(() => {
+  const isOpen = _ytPopupIsOpen();
+  if (isOpen === _lastPopupOpen) return;
+  _lastPopupOpen = isOpen;
+  const wrapper = document.getElementById('yt-sub-wrapper');
+  if (wrapper) wrapper.style.zIndex = isOpen ? '1000' : '';
+}, 150);
+```
+
+---
+
+**踩坑 3：`ytd-popup-container.querySelector()` 找不到其子元素**
+
+在 page context 對 `ytd-popup-container`（Polymer 自定義元素）使用 `.appendChild()` 加入子元素後，`popup.querySelector()` 依然回傳 null，`popup.children.length` 也不增加。  
+推測原因：Polymer 元素的 `connectedCallback` 攔截了 light DOM 的插入，把子元素搬到 Shadow Root 或丟棄。
+
+**解法**：`_ytPopupIsOpen()` 改從 `document`（非 `popup`）全域搜尋，確保能找到 Shadow DOM 外的 dropdown：
+```javascript
+function _ytPopupIsOpen() {
+  if (document.querySelector(
+    'tp-yt-iron-dropdown:not([aria-hidden="true"]), iron-dropdown:not([aria-hidden="true"])'
+  )) return true;
+  const popup = document.querySelector('ytd-popup-container');
+  return popup ? Array.from(popup.children).some(el => el.getBoundingClientRect().height > 0) : false;
+}
+```
 

@@ -642,7 +642,7 @@
 .yt-sub-current-primary {
   font-size: 15px;
   font-weight: 600;
-  color: #fafafa;
+  color: var(--primary-color, #fafafa);
   line-height: 1.5;
 }
 
@@ -715,7 +715,7 @@
 .yt-sub-text-primary {
   font-size: var(--primary-fs, 13px);
   font-weight: 500;
-  color: #fafafa;
+  color: var(--primary-color, #fafafa);
   line-height: 1.5;
 }
 
@@ -900,7 +900,7 @@
   background: rgba(22, 163, 74, 0.12);
   border: 1px solid rgba(22, 163, 74, 0.3);
   border-radius: 4px;
-  padding: 1px 6px;
+  padding: 1px 5px;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -912,7 +912,7 @@
   font-weight: 600;
   font-family: inherit;
   padding: 5px 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid #3f3f46;
   background: transparent;
   color: #71717a;
@@ -969,10 +969,20 @@
 .yt-sub-wb-zh {
   font-size: 11px;
   color: #a1a1aa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.yt-sub-wb-note-preview {
+  font-size: 9px;
+  color: #71717a;
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-style: italic;
 }
 
 .yt-sub-wb-meta {
@@ -989,7 +999,7 @@
   height: 28px;
   background: transparent;
   border: 1px solid #3f3f46;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #52525b;
   font-size: 11px;
   cursor: pointer;
@@ -1005,13 +1015,13 @@
 }
 
 .yt-sub-wb-del {
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #52525b;
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1025,6 +1035,25 @@
   color: #ef4444;
   border-color: rgba(239, 68, 68, 0.25);
 }
+
+/* 備註輸入框（展開詳情區） */
+.yt-sub-wb-note-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #09090b;
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+  color: #a1a1aa;
+  font-size: 10px;
+  font-family: inherit;
+  padding: 6px 8px;
+  resize: none;
+  height: 52px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.yt-sub-wb-note-input::placeholder { color: #52525b; }
+.yt-sub-wb-note-input:focus { border-color: #7c3aed; color: #e4e4e7; }
 
 /* ===== 詞頻 badge（生字本與 popup 共用）===== */
 .yt-sub-tier-badge {
@@ -1124,6 +1153,48 @@
   font-size: 12px;
   color: #d4d4d8;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.yt-sub-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #3f3f46;
+  color: #71717a;
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+  cursor: default;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+}
+.yt-sub-tip:hover {
+  background: #52525b;
+  color: #e4e4e7;
+}
+
+.yt-sub-tip-popup {
+  position: fixed;
+  transform: translateY(calc(-100% - 6px));
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  color: #d4d4d8;
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 7px 11px;
+  border-radius: 7px;
+  max-width: 220px;
+  width: max-content;
+  z-index: 2147483647;
+  pointer-events: none;
+  white-space: normal;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
 }
 
 .yt-sub-select {
@@ -1246,7 +1317,7 @@
 /* ===== 影片 Overlay ===== */
 #yt-sub-overlay {
   position: absolute;
-  bottom: 8%;
+  bottom: 14%;
   left: 2%;
   right: calc(360px + 2%); /* wrapper 寬 360px，sidebar 收合時由 updateOverlayRight 動態調整 */
   z-index: 100;
@@ -1256,6 +1327,20 @@
   gap: 6px;
   pointer-events: none;
 }
+
+#yt-sub-ov-drag {
+  pointer-events: all;
+  cursor: ns-resize;
+  color: rgba(255,255,255,0.35);
+  font-size: 14px;
+  padding: 6px 3px;
+  flex-shrink: 0;
+  user-select: none;
+  line-height: 1;
+  transition: color 0.15s;
+}
+#yt-sub-ov-drag:hover { color: rgba(255,255,255,0.8); }
+#yt-sub-ov-drag.dragging { cursor: ns-resize; color: #a78bfa; }
 
 .yt-sub-ov-nav {
   pointer-events: all;
@@ -1310,7 +1395,7 @@
 #yt-sub-ov-primary {
   font-size: 2.2cqw;
   font-weight: 600;
-  color: #fff;
+  color: var(--ov-primary-color, #fff);
   line-height: 1.4;
   white-space: pre-wrap;
 }
@@ -1334,13 +1419,13 @@
   position: fixed;
   right: auto;
   bottom: auto;
-  width: 420px;
+  width: 360px;
   background: #18181b;
   border: 1px solid #3f3f46;
   border-radius: 12px;
-  padding: 16px 20px;
+  padding: 12px 16px;
   z-index: 200001;
-  font-size: 15px;
+  font-size: 12px;
   box-shadow: 0 16px 64px rgba(0,0,0,0.8), 0 0 0 1px #27272a;
   max-height: 60vh;
   overflow-y: auto;
@@ -1349,35 +1434,67 @@
   scrollbar-color: #3f3f46 transparent;
 }
 
+#yt-sub-word-popup.simplified {
+  width: 180px;
+  padding: 8px 12px;
+  font-size: 10px;
+  border-radius: 10px;
+}
+#yt-sub-word-popup.simplified .yt-sub-popup-word {
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+#yt-sub-word-popup.simplified .yt-sub-popup-phonetic {
+  font-size: 10px;
+}
+#yt-sub-word-popup.simplified .yt-sub-popup-word-zh {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+#yt-sub-word-popup.simplified .yt-sub-popup-pos {
+  font-size: 9px;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+#yt-sub-word-popup.simplified .yt-sub-popup-action-row {
+  margin-top: 6px;
+  gap: 5px;
+}
+#yt-sub-word-popup.simplified .yt-sub-popup-save-btn,
+#yt-sub-word-popup.simplified .yt-sub-popup-learn-btn {
+  font-size: 10px;
+  padding: 3px 6px;
+}
+
 .yt-sub-popup-loading,
 .yt-sub-popup-error {
   color: #71717a;
-  font-size: 15px;
+  font-size: 12px;
 }
 
 .yt-sub-popup-word {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   color: #fafafa;
   margin-bottom: 4px;
 }
 
 .yt-sub-popup-phonetic {
-  font-size: 14px;
+  font-size: 11px;
   color: #7c3aed;
   font-weight: 400;
   margin-left: 8px;
 }
 
 .yt-sub-popup-word-zh {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   color: #fafafa;
   margin-bottom: 8px;
 }
 
 .yt-sub-popup-pos {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 700;
   color: #a855f7;
   text-transform: uppercase;
@@ -1390,25 +1507,25 @@
   color: #d4d4d8;
   line-height: 1.6;
   margin-bottom: 4px;
-  font-size: 15px;
+  font-size: 12px;
 }
 
 .yt-sub-popup-def-zh {
   color: #a78bfa;
-  font-size: 15px;
+  font-size: 12px;
   margin-bottom: 6px;
 }
 
 .yt-sub-popup-translating {
   color: #52525b;
-  font-size: 16px;
+  font-size: 13px;
   font-style: italic;
 }
 
 .yt-sub-popup-example {
   color: #52525b;
   font-style: italic;
-  font-size: 14px;
+  font-size: 11px;
   margin-bottom: 10px;
   padding-left: 12px;
 }
@@ -1423,12 +1540,12 @@
 /* 加入生字本按鈕 */
 .yt-sub-popup-save-btn {
   flex: 1;
-  padding: 8px 0;
+  padding: 6px 0;
   background: #7c3aed;
   color: #fff;
   border: none;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   letter-spacing: 0.04em;
@@ -1447,12 +1564,12 @@
 /* 已學會按鈕（popup 內） */
 .yt-sub-popup-learn-btn {
   flex: 1;
-  padding: 8px 0;
+  padding: 6px 0;
   background: transparent;
   color: #71717a;
   border: 1px solid #3f3f46;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
@@ -1502,12 +1619,12 @@
 }
 
 .yt-sub-popup-syn-en {
-  font-size: 14px;
+  font-size: 11px;
   color: #d4d4d8;
 }
 
 .yt-sub-popup-syn-zh {
-  font-size: 12px;
+  font-size: 10px;
   color: #a855f7;
 }
 
@@ -1518,14 +1635,14 @@
 }
 
 .yt-sub-popup-sent-en {
-  font-size: 16px;
+  font-size: 13px;
   color: #d4d4d8;
   line-height: 1.5;
   margin-bottom: 6px;
 }
 
 .yt-sub-popup-sent-zh {
-  font-size: 16px;
+  font-size: 13px;
   color: #a78bfa;
   margin-bottom: 8px;
 }
@@ -1533,12 +1650,12 @@
 .yt-sub-popup-sent-seek {
   display: block;
   margin-left: auto;
-  padding: 6px 16px;
+  padding: 5px 12px;
   background: #27272a;
   border: 1px solid #3f3f46;
   border-radius: 8px;
   color: #a1a1aa;
-  font-size: 16px;
+  font-size: 12px;
   cursor: pointer;
   font-family: inherit;
 }
@@ -2132,8 +2249,8 @@
 
 .ysm-main {
   flex: 1;
-  overflow-y: auto;
-  padding: 20px 32px;
+  overflow: hidden;
+  padding: 20px 32px 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -2159,16 +2276,17 @@
   outline: none;
   transition: border-color 0.15s;
 }
-.ysm-search::placeholder { color: #52525b; }
+/* F-006: placeholder 對比度提升，搜尋框更易辨識 */
+.ysm-search::placeholder { color: #71717a; }
 .ysm-search:focus { border-color: #7c3aed; }
 .ysm-search-count {
   font-size: 12px;
-  color: #52525b;
+  color: #71717a;
   white-space: nowrap;
   font-family: 'SF Mono', 'Consolas', monospace;
 }
 
-.ysm-subtitle-list { font-size: 18px; display: flex; flex-direction: column; gap: 4px; }
+.ysm-subtitle-list { font-size: 18px; display: flex; flex-direction: column; gap: 10px; flex: 1; overflow-y: auto; padding-bottom: 20px; }
 
 .ysm-row {
   display: flex;
@@ -2177,27 +2295,29 @@
   padding: 10px 12px;
   border-radius: 8px;
   cursor: pointer;
-  border-left: 3px solid transparent;
   transition: background 0.15s;
 }
 .ysm-row:hover { background: #18181b; }
 .ysm-row.ysm-active {
   background: rgba(124, 58, 237, 0.15);
-  border-left-color: #7c3aed;
+  box-shadow: inset 4px 0 0 #7c3aed;
 }
-.ysm-ts     { font-size: 11px; color: #52525b; min-width: 38px; flex-shrink: 0; cursor: pointer; }
+/* F-001+F-005: 時間戳對比度不足(2.4:1→4.8:1) & 字號低於最小值(11→12px) */
+.ysm-ts     { font-size: 12px; color: #a1a1aa; min-width: 38px; flex-shrink: 0; cursor: pointer; }
 .ysm-ts:hover { color: #a855f7; }
 .ysm-texts  { flex: 1; }
 .ysm-primary   { color: #fafafa; line-height: 1.5; }
-.ysm-secondary { color: #a855f7; font-size: 0.8em; margin-top: 2px; }
-.ysm-loop-btn  { opacity: 0; background: none; border: none; color: #7c3aed; font-size: 14px; cursor: pointer; flex-shrink: 0; transition: color 0.15s; }
-.ysm-row:hover .ysm-loop-btn { opacity: 1; }
-.ysm-loop-btn.active { opacity: 1; color: #a855f7; }
+/* F-002: 翻譯色改藍紫(#818cf8)，與關鍵字高亮紫(#a855f7)/金(#f59e0b)明確區分 */
+.ysm-secondary { color: #818cf8; font-size: 0.8em; margin-top: 2px; }
+/* loop 已整合至 row 點擊，獨立按鈕不再使用 */
+.ysm-loop-btn  { display: none; }
+.ysm-row.looping {
+  background: #1e1b4b;
+  box-shadow: 0 0 0 2px #7c3aed88;
+}
 
 .ysm-close-btn {
-  position: fixed;
-  top: 14px;
-  right: 18px;
+  flex-shrink: 0;
   background: #27272a;
   border: none;
   color: #fafafa;
@@ -2206,7 +2326,6 @@
   border-radius: 50%;
   font-size: 16px;
   cursor: pointer;
-  z-index: 10000;
   transition: background 0.15s;
 }
 .ysm-close-btn:hover { background: #7c3aed; }
@@ -2526,6 +2645,22 @@
 }
 
 /* ===== 循環間隔數字輸入 ===== */
+.yt-sub-text-btn {
+  padding: 3px 10px;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  color: #a1a1aa;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.yt-sub-text-btn:hover {
+  border-color: #7c3aed;
+  color: #e4e4e7;
+}
+
 .yt-sub-num-input {
   width: 60px;
   padding: 3px 6px;

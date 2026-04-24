@@ -704,6 +704,11 @@ function showShareDialog(user) {
       backdrop.remove();
       if (resp?.ok) {
         alert('分享成功！感謝您的貢獻。');
+        chrome.runtime.sendMessage({
+          type: 'editor_relay',
+          ytTabId: currentData?.ytTabId,
+          payload: { type: 'REFRESH_COMMUNITY' },
+        });
       } else {
         alert(`分享失敗：${resp?.error || '未知錯誤'}`);
       }

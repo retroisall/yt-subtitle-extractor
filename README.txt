@@ -18,6 +18,42 @@ YT Subtitle Demo - YouTube 字幕提取器
 - 切換影片時會自動重新載入字幕清單
 
 
+v5.0 更新紀錄（2026-04-24）
+============================
+
+【修正】
+
+■ 社群字幕分享後 UI 計數未刷新
+  - 分享成功後選單仍顯示舊數量（例如 0），需手動切頁才能更新
+  - content.js 分享成功後呼叫 fetchCommunitySubtitles() 即時刷新計數
+  - editor.js（獨立分頁）分享成功後透過 editor_relay 傳送 REFRESH_COMMUNITY
+  - content.js 新增 REFRESH_COMMUNITY 訊息處理器，收到後刷新計數
+
+■ Firebase Service Worker 重啟後分享/權限 handler 遺失 session
+  - fb_shareSubtitle、fb_registerEditorPermission、fb_checkEditorPermission、
+    fb_getEditorPermissions、fb_setEditorPermission 均使用同步 getCurrentUser()
+  - MV3 SW 被瀏覽器終止重啟後，in-memory _userInfo 遺失 → 回傳「未登入」或
+    Firestore 403（取決於 SW 重啟時序）
+  - 全部補上 _sessionReady.then() 包裝，確保 session 恢復後才執行
+
+【設計調整】
+
+■ 生字本彈出視窗（Popup）縮小 20%
+  - 容器寬度 420px → 360px，padding 16/20px → 12/16px
+  - 英文單字 22px → 18px、中文譯 18px → 14px、音標 14px → 11px
+  - 定義/例句 15px → 12px、按鈕 15px → 12px、例句跳轉 16px → 13px
+  - Simplified 模式等比例縮減
+
+■ 生字本展開卡片（Expanded Card）還原原始尺寸
+  - 上個版本誤縮此視窗，現全數還原：單字 14px、中文 11px、時間 10px、例句 12px
+  - 刪除按鈕 32px（較原始 44px 緊湊）、播放按鈕 28px
+
+■ 按鈕圓角統一
+  - card 內各按鈕（播放、刪除、已學會、備註輸入框）border-radius 6px → 8px
+  - 與 popup 按鈕 8px 保持一致
+
+---
+
 v4.9 更新紀錄（2026-04-22）
 ============================
 

@@ -6,8 +6,8 @@ import {
   setDoc, getDoc, updateDoc, getCollection, getCollectionPublic, deleteDoc,
 } from './firebase.js';
 
-// 啟動時嘗試恢復登入狀態
-restoreSession().then(user => {
+// 啟動時嘗試恢復登入狀態（Promise 存起來供 handler 等待，解決 SW 重啟 race condition）
+let _sessionReady = restoreSession().then(user => {
   if (user) console.log('[YT-SUB] Firebase session 恢復：', user.email);
 }).catch(() => {});
 
@@ -55,103 +55,97 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     // 儲存單字到雲端（以 word 為 doc ID，同字覆寫）
     case 'fb_saveWord': {
-      const user = getCurrentUser();
-      if (!user) { sendResponse({ ok: false, error: '未登入' }); return false; }
-      setDoc(`users/${user.uid}/words/${msg.word.word}`, msg.word)
-        .then(() => sendResponse({ ok: true }))
-        .catch(e => sendResponse({ ok: false, error: e.message }));
+      _sessionReady.then(() => {
+        const user = getCurrentUser();
+        if (!user) { sendResponse({ ok: false, error: '未登入' }); return; }
+        setDoc(`users/${user.uid}/words/${encodeURIComponent(msg.word.word)}`, msg.word)
+          .then(() => sendResponse({ ok: true }))
+          .catch(e => sendResponse({ ok: false, error: e.message }));
+      });
       return true;
     }
 
     // 從雲端讀取全部單字
     case 'fb_getWords': {
-      const user = getCurrentUser();
-      if (!user) { sendResponse({ ok: false, words: [] }); return false; }
-      getCollection(`users/${user.uid}/words`, {
-        orderBy: { field: 'addedAt', dir: 'DESCENDING' },
-      })
-        .then(words => sendResponse({ ok: true, words }))
-        .catch(e    => sendResponse({ ok: false, error: e.message, words: [] }));
+      _sessionReady.then(() => {
+        const user = getCurrentUser();
+        if (!user) { sendResponse({ ok: false, words: [] }); return; }
+        getCollection(`users/${user.uid}/words`, {
+          orderBy: { field: 'addedAt', dir: 'DESCENDING' },
+        })
+          .then(words => sendResponse({ ok: true, words }))
+          .catch(e    => sendResponse({ ok: false, error: e.message, words: [] }));
+      });
       return true;
     }
 
     // 把本地單字全部同步上雲端
     case 'fb_syncLocal': {
-      const user = getCurrentUser();
-      if (!user) { sendResponse({ ok: false, error: '未登入' }); return false; }
-      const words = msg.words || [];
-      Promise.all(words.map(w => setDoc(`users/${user.uid}/words/${w.word}`, w)))
-        .then(() => sendResponse({ ok: true, count: words.length }))
-        .catch(e  => sendResponse({ ok: false, error: e.message }));
+      _sessionReady.then(() => {
+        const user = getCurrentUser();
+        if (!user) { sendResponse({ ok: false, error: '未登入' }); return; }
+        const words = msg.words || [];
+        Promise.all(words.map(w => setDoc(`users/${user.uid}/words/${encodeURIComponent(w.word)}`, w)))
+          .then(() => sendResponse({ ok: true, count: words.length }))
+          .catch(e  => sendResponse({ ok: false, error: e.message }));
+      });
       return true;
     }
 
     // 刪除雲端單字
     case 'fb_deleteWord': {
-      const user = getCurrentUser();
-      if (!user) { sendResponse({ ok: false }); return false; }
-      deleteDoc(`users/${user.uid}/words/${msg.word}`)
-        .then(() => sendResponse({ ok: true }))
-        .catch(e  => sendResponse({ ok: false, error: e.message }));
+      _sessionReady.then(() => {
+        const user = getCurrentUser();
+        if (!user) { sendResponse({ ok: false }); return; }
+        deleteDoc(`users/${user.uid}/words/${encodeURIComponent(msg.word)}`)
+          .then(() => sendResponse({ ok: true }))
+          .catch(e  => sendResponse({ ok: false, error: e.message }));
+      });
       return true;
     }
 
     // 雙向同步：以 addedAt 較新者為準，軟刪除以 deletedAt 為準
     case 'fb_biSync': {
-      const user = getCurrentUser();
-      if (!user) { sendResponse({ ok: false, error: '未登入' }); return false; }
+      _sessionReady.then(() => {
+        const user = getCurrentUser();
+        if (!user) { sendResponse({ ok: false, error: '未登入' }); return; }
 
-      const localWords = msg.localWords || {};
+        const localWords = msg.localWords || {};
 
-      getCollection(`users/${user.uid}/words`, {})
-        .then(async cloudArr => {
-          // 把雲端陣列轉成 map
-          const cloudWords = {};
-          for (const w of cloudArr) { if (w.word) cloudWords[w.word] = w; }
+        getCollection(`users/${user.uid}/words`, {})
+          .then(async cloudArr => {
+            const cloudWords = {};
+            for (const w of cloudArr) { if (w.word) cloudWords[w.word] = w; }
 
-          // 所有 key 的聯集
-          const allKeys = new Set([...Object.keys(localWords), ...Object.keys(cloudWords)]);
+            const allKeys = new Set([...Object.keys(localWords), ...Object.keys(cloudWords)]);
+            const merged   = {};
+            const toUpload = [];
 
-          const merged       = {};   // 最終本地要存的
-          const toUpload     = [];   // 要寫到 Firestore
-          const toCloudDelete= [];   // 要從 Firestore 刪除
-
-          for (const key of allKeys) {
-            const L = localWords[key]  || null;
-            const C = cloudWords[key]  || null;
-
-            if (L && C) {
-              // 雙方都有 → 比較時間戳（deletedAt 優先於 addedAt）
-              const lTime = L.deletedAt || L.addedAt || 0;
-              const cTime = C.deletedAt || C.addedAt || 0;
-              const winner = lTime >= cTime ? L : C;
-              merged[key] = winner;
-              if (lTime >= cTime) {
-                toUpload.push(winner);           // 本地較新，推上去
+            for (const key of allKeys) {
+              const L = localWords[key] || null;
+              const C = cloudWords[key] || null;
+              if (L && C) {
+                const lTime = L.deletedAt || L.addedAt || 0;
+                const cTime = C.deletedAt || C.addedAt || 0;
+                const winner = lTime >= cTime ? L : C;
+                merged[key] = winner;
+                if (lTime >= cTime) toUpload.push(winner);
+              } else if (L) {
+                merged[key] = L;
+                toUpload.push(L);
+              } else {
+                merged[key] = C;
               }
-              // 本地較舊：merged 已取 C，不需寫 Firestore（已是最新）
-            } else if (L) {
-              // 只有本地 → 上傳
-              merged[key] = L;
-              toUpload.push(L);
-            } else {
-              // 只有雲端 → 拉下來
-              merged[key] = C;
             }
-          }
 
-          // 上傳需要更新的記錄
-          await Promise.all(toUpload.map(w => {
-            if (w.deletedAt) {
-              // 軟刪除的記錄也上傳（讓其他裝置知道）
-              return setDoc(`users/${user.uid}/words/${w.word}`, w);
-            }
-            return setDoc(`users/${user.uid}/words/${w.word}`, w);
-          }));
+            await Promise.all(toUpload.map(w =>
+              setDoc(`users/${user.uid}/words/${encodeURIComponent(w.word)}`, w)
+            ));
 
-          sendResponse({ ok: true, merged });
-        })
-        .catch(e => sendResponse({ ok: false, error: e.message }));
+            sendResponse({ ok: true, merged });
+          })
+          .catch(e => sendResponse({ ok: false, error: e.message }));
+      });
       return true;
     }
 
@@ -215,20 +209,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     // 分享字幕至社群（寫入 Firestore customSubtitles collection）
     case 'fb_shareSubtitle': {
-      const user = getCurrentUser();
-      if (!user) { sendResponse({ ok: false, error: '未登入' }); return false; }
-      const { videoId, authorName, subtitleName, primarySubtitles: ps, secondarySubtitles: ss } = msg;
-      const docId = `${user.uid}_${Date.now()}`;
-      setDoc(`customSubtitles/${videoId}/entries/${docId}`, {
-        authorName,
-        subtitleName,
-        uploadedAt: Date.now(),
-        uploaderUid: user.uid,
-        primarySubtitles: ps,
-        secondarySubtitles: ss,
-      })
-        .then(() => sendResponse({ ok: true, docId }))
-        .catch(e  => sendResponse({ ok: false, error: e.message }));
+      _sessionReady.then(() => {
+        const user = getCurrentUser();
+        if (!user) { sendResponse({ ok: false, error: '未登入' }); return; }
+        const { videoId, authorName, subtitleName, primarySubtitles: ps, secondarySubtitles: ss } = msg;
+        const docId = `${user.uid}_${Date.now()}`;
+        const now = Date.now();
+        Promise.all([
+          // 寫入字幕內容
+          setDoc(`customSubtitles/${videoId}/entries/${docId}`, {
+            authorName, subtitleName,
+            uploadedAt: now,
+            uploaderUid: user.uid,
+            primarySubtitles: ps,
+            secondarySubtitles: ss,
+          }),
+          // 建立/更新頂層 videoId doc（讓社群頁能 list 到此影片）
+          updateDoc(`customSubtitles/${videoId}`, { lastUploadedAt: now })
+            .catch(() => setDoc(`customSubtitles/${videoId}`, { lastUploadedAt: now })),
+        ])
+          .then(() => sendResponse({ ok: true, docId }))
+          .catch(e  => sendResponse({ ok: false, error: e.message }));
+      });
       return true;
     }
 
@@ -247,57 +249,65 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     // 登入後自動建立編輯器權限申請 doc（若已存在則不覆寫）
     case 'fb_registerEditorPermission': {
-      const user = getCurrentUser();
-      if (!user) { sendResponse({ ok: false, error: '未登入' }); return false; }
-      const docPath = `editor_permissions/${user.uid}`;
-      getDoc(docPath)
-        .then(existing => {
-          if (existing) { sendResponse({ ok: true, existed: true, data: existing }); return; }
-          return setDoc(docPath, {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName || '',
-            enabled: false,
-            requestedAt: new Date().toISOString(),
-          }).then(() => sendResponse({ ok: true, existed: false }));
-        })
-        .catch(e => sendResponse({ ok: false, error: e.message }));
+      _sessionReady.then(() => {
+        const user = getCurrentUser();
+        if (!user) { sendResponse({ ok: false, error: '未登入' }); return; }
+        const docPath = `editor_permissions/${user.uid}`;
+        getDoc(docPath)
+          .then(existing => {
+            if (existing) { sendResponse({ ok: true, existed: true, data: existing }); return; }
+            return setDoc(docPath, {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName || '',
+              enabled: false,
+              requestedAt: new Date().toISOString(),
+            }).then(() => sendResponse({ ok: true, existed: false }));
+          })
+          .catch(e => sendResponse({ ok: false, error: e.message }));
+      });
       return true;
     }
 
     // 查詢目前使用者是否有編輯器權限
     case 'fb_checkEditorPermission': {
-      const user = getCurrentUser();
-      if (!user) { sendResponse({ ok: true, enabled: false, reason: 'not_logged_in' }); return false; }
-      // 管理員帳號預設永遠有編輯權限
-      const ADMIN_EMAILS = ['kuoway79@gmail.com'];
-      if (ADMIN_EMAILS.includes(user.email)) {
-        sendResponse({ ok: true, enabled: true });
-        return false;
-      }
-      getDoc(`editor_permissions/${user.uid}`)
-        .then(doc => sendResponse({ ok: true, enabled: doc?.enabled === true }))
-        .catch(()  => sendResponse({ ok: true, enabled: false }));
+      _sessionReady.then(() => {
+        const user = getCurrentUser();
+        if (!user) { sendResponse({ ok: true, enabled: false, reason: 'not_logged_in' }); return; }
+        // 管理員帳號預設永遠有編輯權限
+        const ADMIN_EMAILS = ['kuoway79@gmail.com'];
+        if (ADMIN_EMAILS.includes(user.email)) {
+          sendResponse({ ok: true, enabled: true });
+          return;
+        }
+        getDoc(`editor_permissions/${user.uid}`)
+          .then(doc => sendResponse({ ok: true, enabled: doc?.enabled === true }))
+          .catch(()  => sendResponse({ ok: true, enabled: false }));
+      });
       return true;
     }
 
     // 管理員：取得所有申請列表
     case 'fb_getEditorPermissions': {
-      const user = getCurrentUser();
-      if (!user) { sendResponse({ ok: false, entries: [] }); return false; }
-      getCollection('editor_permissions', { orderBy: { field: 'requestedAt', dir: 'DESCENDING' } })
-        .then(entries => sendResponse({ ok: true, entries }))
-        .catch(e      => sendResponse({ ok: false, error: e.message, entries: [] }));
+      _sessionReady.then(() => {
+        const user = getCurrentUser();
+        if (!user) { sendResponse({ ok: false, entries: [] }); return; }
+        getCollection('editor_permissions', { orderBy: { field: 'requestedAt', dir: 'DESCENDING' } })
+          .then(entries => sendResponse({ ok: true, entries }))
+          .catch(e      => sendResponse({ ok: false, error: e.message, entries: [] }));
+      });
       return true;
     }
 
     // 管理員：更新某使用者的 enabled 狀態
     case 'fb_setEditorPermission': {
-      const user = getCurrentUser();
-      if (!user) { sendResponse({ ok: false, error: '未登入' }); return false; }
-      updateDoc(`editor_permissions/${msg.uid}`, { enabled: msg.enabled })
-        .then(() => sendResponse({ ok: true }))
-        .catch(e  => sendResponse({ ok: false, error: e.message }));
+      _sessionReady.then(() => {
+        const user = getCurrentUser();
+        if (!user) { sendResponse({ ok: false, error: '未登入' }); return; }
+        updateDoc(`editor_permissions/${msg.uid}`, { enabled: msg.enabled })
+          .then(() => sendResponse({ ok: true }))
+          .catch(e  => sendResponse({ ok: false, error: e.message }));
+      });
       return true;
     }
 
