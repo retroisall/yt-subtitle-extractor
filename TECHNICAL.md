@@ -716,3 +716,93 @@ function _ytPopupIsOpen() {
 }
 ```
 
+
+---
+
+## 關鍵技術 N：Hover-Pause 與 Overlay DOM 控制
+
+### 背景
+
+YEM hover-pause 功能：滑鼠移入字幕 overlay 時，若字幕切換，影片自動暫停並凍結顯示原句；移出後恢復播放。
+
+---
+
+**踩坑 1：`pointer-events: none` 導致 mouseenter 永遠不觸發**
+
+`#yt-sub-overlay`（最外層容器）設了 `pointer-events: none`（讓點擊穿透到 YouTube 播放器）。若把 `mouseenter` / `mouseleave` 綁在此元素上，事件永遠不會觸發，但 CSS `:hover` 仍有效（CSS hover 不受 pointer-events 限制）。
+
+現象：透明度/背景色因 CSS `:hover` 正常變化，但 JS 監聽毫無反應。
+
+**解法**：事件綁在子元素 `#yt-sub-ov-body`（`pointer-events: all`），而非 overlay 本體：
+
+```javascript
+// 錯誤：overlay 本體有 pointer-events:none，mouseenter 不觸發
+overlay.addEventListener('mouseenter', ...);
+
+// 正確：綁在有 pointer-events:all 的子元素
+const ovBody = overlay.querySelector('#yt-sub-ov-body');
+ovBody.addEventListener('mouseenter', () => { _ovHovering = true; });
+ovBody.addEventListener('mouseleave', () => { ... });
+```
+
+---
+
+**踩坑 2：YouTube 字幕通常無間隙，`primIdx === -1` 判斷永遠不成立**
+
+字幕切換判斷用 `primIdx === -1`（字幕結束後有空白間隙才觸發）。但大多數 YouTube 字幕 A 結束的瞬間 B 立刻開始，`primIdx` 從 A 的 index 直接跳到 B，永遠不經過 `-1`。
+
+**解法**：改判斷「字幕切換到不同句子」（含有間隙與無間隙兩種情況）：
+
+```javascript
+// 錯誤：只捕捉有空隙的情況
+&& _currentPrimIdx >= 0 && primIdx === -1
+
+// 正確：有間隙（→-1）或直接切換（→下一句）都觸發
+&& _currentPrimIdx >= 0 && primIdx !== _currentPrimIdx
+```
+
+---
+
+**踩坑 3：rewind + pause 連用導致字幕閃爍**
+
+為了在暫停後仍顯示原句，嘗試 `video.currentTime = sub.endTime - 0.05` + `video.pause()`。seek 觸發瀏覽器非同步 repaint，會有一幀空白字幕閃爍。
+
+**解法**：完全不動 `video.currentTime`，改用狀態變數凍結顯示層：
+
+```javascript
+// 暫停時儲存要凍結的字幕物件
+_ovFrozenSub = primarySubtitles[_currentPrimIdx];
+video.pause();
+_ovPausedForHover = true;
+
+// 渲染時，凍結期間強制用 _ovFrozenSub 取代 primSub
+const displaySub = (_ovPausedForHover && _ovFrozenSub) ? _ovFrozenSub : primSub;
+```
+
+---
+
+**踩坑 4：狀態更新必須在依賴它的計算之前**
+
+`secSub`（副字幕）依賴 `_ovPausedForHover` 和 `_ovFrozenSub` 來決定查找時間點。若 hover-pause trigger 寫在 `secSub` 計算之後，trigger 發動的那一幀 `_ovPausedForHover` 還是 `false`，導致副字幕凍結失敗（主字幕正確，副字幕跑到下一句）。
+
+**正確順序**：
+
+```javascript
+// 1. 先算 primSub（不依賴凍結狀態）
+const primSub = primIdx >= 0 ? primarySubtitles[primIdx] : null;
+
+// 2. 執行 hover-pause trigger，更新 _ovFrozenSub 和 _ovPausedForHover
+if (_ovHovering && !_ovPausedForHover && ...) {
+  _ovFrozenSub = primarySubtitles[_currentPrimIdx];
+  video.pause();
+  _ovPausedForHover = true;
+}
+
+// 3. 才計算 secSub（此時 _ovPausedForHover 已是最新值）
+const secLookupSub = (_ovPausedForHover && _ovFrozenSub) ? _ovFrozenSub : primSub;
+const secSub = secLookupSub ? findSubAtTime(secondarySubtitles, secLookupSub.startTime + 0.1) : null;
+
+// 4. 最後渲染，主副都用凍結狀態決定
+const displaySub = (_ovPausedForHover && _ovFrozenSub) ? _ovFrozenSub : primSub;
+```
+

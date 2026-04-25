@@ -562,3 +562,34 @@ v2.1 更新紀錄（2026-04-20）
 - _loopActive 未重置導致播放器持續被暫停
 - fetchCommunitySubtitles() 因 customSubtitleActive flag 而被略過
 - _restoreSavedSubtitle 僅在有 YT 字幕時才呼叫（無字幕影片無法還原）
+
+---
+
+v5.1 更新紀錄（2026-04-25）
+============================
+
+【效能優化】
+
+■ YEM 字幕編輯器虛擬捲動（Virtual Scroll）
+  - 修正：7000+ 句字幕開啟編輯器直接崩潰
+  - 超過 150 句時啟用虛擬捲動，只渲染可見範圍 ± 25 句緩衝
+  - 上下各用 spacer div 撐開高度，維持正確捲軸比例
+  - 播放自動跟隨改用 scrollTop 直接賦值（取代 scrollIntoView），避免 smooth scroll 期間連續觸發重建
+  - 1000 句以內體感無差異；7000+ 句從崩潰變為流暢
+
+【修正】
+
+■ YEM 翻譯字幕在未導航前不載入
+  - 新增 _translationWindowEnd 保護：翻譯 job 仍在跑且當前時間在其窗口內，seeked 事件不取消 job
+  - 修正快速點擊導覽按鈕時 seeked 事件反覆取消進行中的翻譯
+
+【新功能】
+
+■ Overlay Hover-Pause（字幕暫停閱讀）
+  - 滑鼠移入影片字幕 overlay（#yt-sub-ov-body）時進入 hover 狀態
+  - 字幕切換瞬間自動暫停影片，讓使用者有時間點擊當前字幕內容
+  - 暫停時主副字幕均凍結顯示原句（不跟隨影片位置更新），無閃爍
+  - 移開滑鼠後自動繼續播放
+  - 使用者手動按播放（Space / 點擊播放鍵）時，自動解除 hover-pause 鎖
+  - 換影片時重置所有 hover-pause 狀態，避免殘留誤觸發
+

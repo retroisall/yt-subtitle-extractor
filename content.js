@@ -42,12 +42,16 @@
   let _rawPrimarySubtitles = []; // 未延長的原始字幕（供設定切換時重算用）
   let secondarySubtitles = [];
   let syncInterval = null;
-  let _listHovering = false; // 滑鼠 hover 在字幕列表上時凍結高亮捲動
+  let _listHovering      = false; // 滑鼠 hover 在字幕列表上時凍結高亮捲動
+  let _ovHovering        = false; // 滑鼠 hover 在影片字幕 overlay 上
+  let _ovPausedForHover  = false; // hover-pause 功能觸發的暫停（mouseleave 時恢復）
+  let _ovFrozenSub       = null;  // hover-pause 凍結的字幕物件（暫停期間強制顯示此句）
   let injected = false;
   let pendingTranslation = null;
   let pendingPrimaryTranslation = null; // 主字幕 Google Translate 翻譯目標
   let primaryTranslationJob = null;     // 主字幕翻譯 job（獨立於副字幕的 translationJob）
   let translationJob = null;
+  let _translationWindowEnd = -1; // translateAndSetSecondary 目前翻譯窗口的結束時間
   let loopingIdx = -1;
   let _playerRO = null;       // ResizeObserver：監聽 player 大小變化以同步 wrapper 高度
   let _forcedTheater = false; // 記錄展開時是否由套件主動切入劇院模式（收合時還原）
@@ -2756,6 +2760,7 @@
     const video = document.querySelector('video');
     const currentTime = fromTime ?? (video?.currentTime || 0);
     const windowEnd = currentTime + TRANSLATE_WINDOW;
+    _translationWindowEnd = windowEnd;
 
     // 找出這個時間窗口內的字幕 index
     const indices = [];
@@ -3080,6 +3085,19 @@
 
     // 右鍵 delegation 由 initWindowContextMenu() 在 window 層統一處理，此處不再重複綁定
 
+    // hover-pause：滑鼠進入字幕 body → 字幕結束時暫停；離開 → 恢復播放
+    // 注意：#yt-sub-overlay 本體是 pointer-events:none，需綁在 #yt-sub-ov-body（pointer-events:all）
+    const ovBody = overlay.querySelector('#yt-sub-ov-body');
+    ovBody.addEventListener('mouseenter', () => { _ovHovering = true; });
+    ovBody.addEventListener('mouseleave', () => {
+      _ovHovering = false;
+      if (_ovPausedForHover) {
+        _ovPausedForHover = false;
+        _ovFrozenSub = null;
+        document.querySelector('video')?.play().catch(() => {});
+      }
+    });
+
     // 點擊背版（body 區域）→ 啟動/取消單句循環
     document.getElementById('yt-sub-ov-body').addEventListener('click', e => {
       if (e.target.closest('.yt-sub-word')) return;
@@ -3387,6 +3405,9 @@
   let _currentMode    = 'default'; // 'default' | 'subtitle' | 'edit'
   let _editDirty      = false;     // 編輯字幕模式是否有未儲存變更
   let _focusedRow     = -1;        // 編輯模式中目前聚焦的列索引
+  const _VS_ROW_H = 112;           // virtual scroll：每項估計高度（row + merge bar）px
+  const _VS_BUF   = 25;            // virtual scroll：可見區外多 render 幾行作緩衝
+  let _yemVS      = null;          // null = 全量 render；否則 = { start, end }
   let _editorEnabled  = false;     // 目前使用者是否有編輯字幕模式權限
   let _userTier       = 'guest';   // 'guest' | 'user' | 'editor'  三層權限
   let _loopActive     = false;     // 循環播放是否啟用
@@ -3781,9 +3802,9 @@
       </div>
       <div class="yem-right">
         <div class="yem-toolbar">
-          <button class="yem-tool-btn" id="yem-save-btn">💾 儲存本地</button>
-          <button class="yem-tool-btn" id="yem-share-btn">🌐 分享社群</button>
-          <button class="yem-tool-btn" id="yem-export-btn">📤 匯出 SRT</button>
+          <button class="yem-tool-btn" id="yem-save-btn">儲存本地</button>
+          <button class="yem-tool-btn" id="yem-share-btn">分享社群</button>
+          <button class="yem-tool-btn" id="yem-export-btn">匯出 SRT</button>
           <button class="yem-tool-btn" id="yem-loop-btn">⇄ 循環</button>
           <button class="yem-tool-btn yem-back-btn" id="yem-back-btn">← 返回</button>
           <span class="yem-dirty-badge" id="yem-dirty-badge" style="display:none">● 未儲存</span>
@@ -3881,8 +3902,17 @@
         });
         if (playingIdx >= 0 && playingIdx !== _focusedRow) {
           _focusedRow = playingIdx;
-          overlay.querySelectorAll('.yem-row').forEach((r, i) => r.classList.toggle('yem-focused', i === playingIdx));
-          overlay.querySelector(`.yem-row[data-idx="${playingIdx}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          const rowsContainer = overlay.querySelector('#yem-rows');
+          const rowEl = rowsContainer.querySelector(`.yem-row[data-idx="${playingIdx}"]`);
+          if (rowEl && _yemVS === null) {
+            // 小清單（全量 render）：直接更新 class 並 scrollIntoView
+            overlay.querySelector('.yem-row.yem-focused')?.classList.remove('yem-focused');
+            rowEl.classList.add('yem-focused');
+            rowEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          } else {
+            // Virtual scroll 或 row 不在窗口內：直接設 scrollTop，scroll 事件觸發 re-render
+            rowsContainer.scrollTop = Math.max(0, playingIdx * _VS_ROW_H - rowsContainer.clientHeight / 2);
+          }
         }
 
         // --- 循環邏輯 ---
@@ -3917,6 +3947,17 @@
 
     _renderEditRows(overlay, vid);
 
+    // virtual scroll：捲動時重新 render 可見窗口（rAF throttle，每幀最多 render 一次）
+    let _vsRafId = 0;
+    overlay.querySelector('#yem-rows').addEventListener('scroll', () => {
+      if (_yemVS === null) return;
+      if (_vsRafId) return;
+      _vsRafId = requestAnimationFrame(() => {
+        _vsRafId = 0;
+        _renderEditRows(overlay, vid);
+      });
+    }, { passive: true });
+
     // 2. 聚焦 row → seek 到該句起始並播放
     overlay.querySelector('#yem-rows').addEventListener('focusin', e => {
       const row = e.target.closest('.yem-row');
@@ -3930,7 +3971,8 @@
         }
       }
       clearTimeout(_loopTimeoutId); _loopTimeoutId = null;
-      overlay.querySelectorAll('.yem-row').forEach(r => r.classList.toggle('yem-focused', r === row));
+      overlay.querySelector('.yem-row.yem-focused')?.classList.remove('yem-focused');
+      row.classList.add('yem-focused');
     });
 
     // 離開 row focus → 依 startTime 重新排序（只在 focus 真正離開 row 時觸發）
@@ -3955,11 +3997,16 @@
       secondarySubtitles.splice(insertAfter + 1, 0, { text: '', startTime, duration: endTime - startTime });
       _focusedRow = insertAfter + 1;
       _markDirty(overlay);
+      // virtual scroll：先確保 scrollTop 在新 row 附近，再 render
+      if (_yemVS !== null) {
+        const rowsContainer = overlay.querySelector('#yem-rows');
+        rowsContainer.scrollTop = Math.max(0, _focusedRow * _VS_ROW_H - rowsContainer.clientHeight / 2);
+      }
       _renderEditRows(overlay, vid);
       // 聚焦新 row 的主字幕輸入框
       setTimeout(() => {
-        const rows = overlay.querySelectorAll('.yem-row');
-        rows[_focusedRow]?.querySelector('.yem-primary-input')?.focus();
+        overlay.querySelector(`#yem-rows .yem-row[data-idx="${_focusedRow}"]`)
+          ?.querySelector('.yem-primary-input')?.focus();
       }, 50);
     });
 
@@ -4065,8 +4112,31 @@
 
   function _renderEditRows(overlay, vid) {
     const container = overlay.querySelector('#yem-rows');
+    const total = _editSubtitles.length;
+
+    // 計算要 render 的範圍（virtual scroll）
+    let start = 0, end = total;
+    if (total > 150) {
+      const scrollTop = container.scrollTop;
+      const viewH     = container.clientHeight || 500;
+      start    = Math.max(0,     Math.floor(scrollTop / _VS_ROW_H) - _VS_BUF);
+      end      = Math.min(total, Math.ceil((scrollTop + viewH) / _VS_ROW_H) + _VS_BUF);
+      _yemVS   = { start, end };
+    } else {
+      _yemVS = null;
+    }
+
     container.innerHTML = '';
-    _editSubtitles.forEach((sub, i) => {
+
+    // 上方空白撐高 scrollbar
+    if (start > 0) {
+      const sp = document.createElement('div');
+      sp.style.height = (start * _VS_ROW_H) + 'px';
+      container.appendChild(sp);
+    }
+
+    for (let i = start; i < end; i++) {
+      const sub = _editSubtitles[i];
       const row = document.createElement('div');
       row.className = 'yem-row' + (i === _focusedRow ? ' yem-focused' : '');
       row.dataset.idx = i;
@@ -4078,16 +4148,22 @@
           </div>
           <div class="yem-ts-row">
             <input class="yem-ts-input" data-field="endTime" value="${_yemFmtTs(sub.endTime ?? sub.startTime + 2)}" placeholder="0:00.000">
-            <button class="yem-grab-btn" data-field="endTime" title="對齊後一句結尾" ${i === _editSubtitles.length - 1 ? 'disabled' : ''}>⌚</button>
+            <button class="yem-grab-btn" data-field="endTime" title="對齊後一句結尾" ${i === total - 1 ? 'disabled' : ''}>⌚</button>
           </div>
         </div>
-        <textarea class="yem-primary-input" placeholder="主字幕" rows="1">${sub.text || ''}</textarea>
-        <textarea class="yem-secondary-input" placeholder="副字幕" rows="1">${secondarySubtitles[i]?.text || ''}</textarea>
+        <div class="yem-input-group">
+          <span class="yem-input-label">主</span>
+          <textarea class="yem-primary-input" placeholder="主字幕" rows="1">${sub.text || ''}</textarea>
+        </div>
+        <div class="yem-input-group">
+          <span class="yem-input-label yem-input-label--sec">副</span>
+          <textarea class="yem-secondary-input" placeholder="副字幕" rows="1">${secondarySubtitles[i]?.text || ''}</textarea>
+        </div>
         <button class="yem-del-btn" title="刪除此句">×</button>
       `;
 
       // 時間戳防呆：回傳 true 表示合法，false 表示超出相鄰字幕範圍
-      function _tsValid(field, val) {
+      const _tsValid = (field, val) => {
         if (!isFinite(val) || val < 0) return false;
         if (field === 'startTime') {
           const prevEnd = i > 0 ? (_editSubtitles[i - 1].endTime ?? _editSubtitles[i - 1].startTime + 2) : 0;
@@ -4100,7 +4176,7 @@
           if (val <= _editSubtitles[i].startTime) return false;
         }
         return true;
-      }
+      };
 
       // 時間戳輸入
       row.querySelectorAll('.yem-ts-input').forEach(inp => {
@@ -4167,7 +4243,7 @@
       container.appendChild(row);
 
       // 兩句之間的合併按鈕
-      if (i < _editSubtitles.length - 1) {
+      if (i < total - 1) {
         const mergeBar = document.createElement('div');
         mergeBar.className = 'yem-merge-bar';
         mergeBar.innerHTML = `<button class="yem-merge-btn" title="合併上下兩句">＋</button>`;
@@ -4188,7 +4264,15 @@
         });
         container.appendChild(mergeBar);
       }
-    });
+    }
+
+    // 下方空白撐高 scrollbar
+    if (end < total) {
+      const sp = document.createElement('div');
+      sp.style.height = ((total - end) * _VS_ROW_H) + 'px';
+      container.appendChild(sp);
+    }
+
     // 所有 row 進 DOM 後，才能正確讀到 scrollHeight
     requestAnimationFrame(() => {
       container.querySelectorAll('.yem-primary-input, .yem-secondary-input').forEach(_yemAutoResize);
@@ -4227,6 +4311,7 @@
     // 重置循環/自動暫停狀態，避免殘留
     _loopActive    = false;
     _focusedRow    = -1;
+    _yemVS         = null;
     if (_loopTimeoutId) { clearTimeout(_loopTimeoutId); _loopTimeoutId = null; }
 
     // 把 video 歸還給 YouTube
@@ -4269,7 +4354,10 @@
   let _seekHandler = null;
   function startSync() {
     if (syncInterval) clearInterval(syncInterval);
-    _lastSyncPrimIdx = -2; // 重置快取，確保新影片第一幀立即更新列表
+    _lastSyncPrimIdx  = -2; // 重置快取，確保新影片第一幀立即更新列表
+    _currentPrimIdx   = -1; // 新影片重置，避免 hover-pause 誤觸發
+    _ovPausedForHover = false; // 清除殘留的 hover-pause 狀態
+    _ovFrozenSub      = null;  // 清除凍結字幕
 
     // 字幕同步啟動 → LED 確認進入 has-sub（video 可能已在播放中）
     const videoCheck = document.querySelector('video');
@@ -4289,7 +4377,9 @@
         const t = video.currentTime;
         // 目前時間點後 60 秒內沒有翻譯結果，才重新觸發
         const hasCoverage = secondarySubtitles.some(s => s.startTime >= t && s.startTime < t + 60);
-        if (!hasCoverage && pendingTranslation === null) {
+        // 翻譯 job 仍在跑且當前時間在其窗口內，不打擾它（防止 YT player seeked 反覆取消）
+        const jobRunning = translationJob && !translationJob.cancelled && t < _translationWindowEnd;
+        if (!hasCoverage && pendingTranslation === null && !jobRunning) {
           const priorities = (settings.secondaryLangs || []).filter(l => l && l !== '__none__');
           if (priorities.length) {
             const lang = priorities[0].startsWith('tlang:') ? priorities[0].slice(6) : priorities[0];
@@ -4308,16 +4398,35 @@
       const tSub = t + (settings.subtitleOffset || 0); // 套用使用者設定的時間偏移
       const primIdx = findActiveIndex(primarySubtitles, tSub);
       const primSub = primIdx >= 0 ? primarySubtitles[primIdx] : null;
+
+      // hover-pause：字幕剛結束或切換到下一句，且滑鼠仍在 overlay 上 → 暫停
+      // 先更新凍結狀態，再計算 secSub，確保同一幀內主副字幕都凍結
+      if (_ovHovering && !_ovPausedForHover && !video.paused
+          && _currentPrimIdx >= 0 && primIdx !== _currentPrimIdx) {
+        _ovFrozenSub = primarySubtitles[_currentPrimIdx] ?? null;
+        video.pause();
+        _ovPausedForHover = true;
+      }
+      // 手動播放（例如使用者自己按 space）→ 清除 hover-pause 鎖，不干擾後續
+      if (_ovPausedForHover && !video.paused) {
+        _ovPausedForHover = false;
+        _ovFrozenSub = null;
+      }
+
+      // hover-pause 凍結期間：用凍結主字幕的時間找副字幕，確保主副同步凍結
       // 用 startTime + 0.1 而非 midpoint，避免 extendSubtitles 拉長 duration 後
       // midpoint 跑到 secondary subtitle 的時間範圍之外
-      const secSub = primSub
-        ? findSubAtTime(secondarySubtitles, primSub.startTime + 0.1)
+      const secLookupSub = (_ovPausedForHover && _ovFrozenSub) ? _ovFrozenSub : primSub;
+      const secSub = secLookupSub
+        ? findSubAtTime(secondarySubtitles, secLookupSub.startTime + 0.1)
         : null;
 
       const curPrimEl = document.getElementById('yt-sub-cur-primary');
       const curSecEl = document.getElementById('yt-sub-cur-secondary');
       const curWrap = document.getElementById('yt-sub-current');
-      const primText = primSub ? filterSubText(primSub.text) : '';
+      // hover-pause 凍結期間：強制顯示暫停前的字幕，不跟隨 video.currentTime
+      const displaySub = (_ovPausedForHover && _ovFrozenSub) ? _ovFrozenSub : primSub;
+      const primText = displaySub ? filterSubText(displaySub.text) : '';
       // 主字幕被過濾成空（全是狀聲詞）時，副字幕也一起隱藏，避免只顯示孤立的翻譯
       const secText = primText && secSub && settings.dualEnabled ? filterSubText(secSub.text) : '';
       const wrapActive = !!primText || !!(secText);
@@ -4327,7 +4436,7 @@
         if (curPrimEl.dataset.text !== newText) {
           curPrimEl.dataset.text = newText;
           curPrimEl.innerHTML = '';
-          if (newText) buildTokenizedText(curPrimEl, newText, primSub?.startTime ?? 0);
+          if (newText) buildTokenizedText(curPrimEl, newText, displaySub?.startTime ?? 0);
         }
       }
       // 只有文字改變時才寫入，避免每 100ms 觸發 layout
