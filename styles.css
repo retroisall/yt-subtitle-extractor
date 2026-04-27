@@ -1393,7 +1393,7 @@
 }
 
 #yt-sub-ov-primary {
-  font-size: 2.2cqw;
+  font-size: var(--ov-primary-fs, 2.2cqw);
   font-weight: 600;
   color: var(--ov-primary-color, #fff);
   line-height: 1.4;
@@ -1401,7 +1401,7 @@
 }
 
 #yt-sub-ov-secondary {
-  font-size: 1.8cqw;
+  font-size: var(--ov-secondary-fs, 1.8cqw);
   font-weight: 500;
   color: var(--ov-secondary-color, #c084fc);
   line-height: 1.4;
@@ -2378,12 +2378,17 @@
   border-top: 1px solid #27272a;
 }
 .yem-ctrl-btn {
-  background: none;
-  border: none;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
   color: #fafafa;
-  font-size: 16px;
+  font-size: 14px;
   cursor: pointer;
+  padding: 4px 10px;
+  min-height: 28px;
+  transition: border-color 0.15s;
 }
+.yem-ctrl-btn:hover { border-color: #7c3aed; }
 .yem-scrubber { flex: 1; accent-color: #7c3aed; }
 .yem-time { font-size: 11px; color: #a1a1aa; min-width: 72px; }
 .yem-options-bar {
@@ -2425,7 +2430,9 @@
 .yem-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+  row-gap: 6px;
   padding: 10px 14px;
   background: #18181b;
   border-bottom: 1px solid #27272a;
@@ -2488,7 +2495,7 @@
   padding: 6px 10px;
   font-family: inherit;
 }
-.yem-share-input:focus { border-color: #7c3aed; outline: none; }
+.yem-share-input:focus-visible { border-color: #7c3aed; outline: 2px solid rgba(124,58,237,0.4); outline-offset: 1px; }
 .yem-share-actions {
   display: flex;
   gap: 8px;
@@ -2520,7 +2527,7 @@
 
 .yem-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   padding: 6px 8px;
   border-radius: 8px;
@@ -2531,7 +2538,7 @@
 }
 .yem-row.yem-focused { border-left-color: #7c3aed; }
 
-.yem-ts-block { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; }
+.yem-ts-block { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; padding-top: 3px; }
 .yem-ts-row   { display: flex; align-items: center; gap: 3px; }
 .yem-ts-input {
   width: 78px;
@@ -2543,7 +2550,7 @@
   font-size: 11px;
   font-family: monospace;
 }
-.yem-ts-input:focus { border-color: #7c3aed; outline: none; }
+.yem-ts-input:focus-visible { border-color: #7c3aed; outline: 2px solid rgba(124,58,237,0.4); outline-offset: 1px; }
 .yem-grab-btn {
   background: none;
   border: 1px solid #3f3f46;
@@ -2551,7 +2558,8 @@
   color: #a1a1aa;
   font-size: 11px;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 4px 7px;
+  min-height: 28px;
   line-height: 1;
 }
 .yem-grab-btn:hover { border-color: #7c3aed; color: #a855f7; }
@@ -2564,12 +2572,12 @@
 }
 .yem-merge-btn {
   background: none;
-  border: 1px dashed #3f3f46;
+  border: 1px dashed #52525b;
   border-radius: 50%;
-  color: #52525b;
-  font-size: 14px;
-  width: 22px;
-  height: 22px;
+  color: #71717a;
+  font-size: 12px;
+  width: 28px;
+  height: 28px;
   line-height: 1;
   cursor: pointer;
   display: flex;
@@ -2578,6 +2586,25 @@
   transition: border-color 0.15s, color 0.15s;
 }
 .yem-merge-btn:hover { border-color: #22c55e; color: #22c55e; }
+
+.yem-input-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.yem-input-label {
+  font-size: 10px;
+  color: #52525b;
+  padding-top: 7px;
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.yem-input-label--sec { color: #6d28d9; }
 
 .yem-primary-input,
 .yem-secondary-input {
@@ -2595,16 +2622,17 @@
   line-height: 1.5;
 }
 .yem-secondary-input { color: #a855f7; font-size: 12px; }
-.yem-primary-input:focus,
-.yem-secondary-input:focus { border-color: #7c3aed; outline: none; }
+.yem-primary-input:focus-visible,
+.yem-secondary-input:focus-visible { border-color: #7c3aed; outline: 2px solid rgba(124,58,237,0.4); outline-offset: 1px; }
 
 .yem-del-btn {
   background: none;
   border: none;
-  color: #52525b;
+  color: #71717a;
   font-size: 16px;
   cursor: pointer;
-  padding: 0 4px;
+  padding: 4px 8px;
+  min-height: 28px;
   flex-shrink: 0;
 }
 .yem-del-btn:hover { color: #ef4444; }
@@ -2682,4 +2710,124 @@
   background: #7c3aed !important;
   color: #fff !important;
   border-color: #7c3aed !important;
+}
+
+/* ===== 本地字幕儲存管理 ===== */
+.yt-sub-storage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+.yt-sub-storage-empty {
+  color: #71717a;
+  font-size: 12px;
+  text-align: center;
+  padding: 8px 0;
+}
+.yt-sub-storage-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  background: #18181b;
+  border-radius: 6px;
+  border: 1px solid #27272a;
+}
+.yt-sub-storage-vid {
+  font-size: 11px;
+  font-family: 'SF Mono', Consolas, monospace;
+  color: #a78bfa;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.yt-sub-storage-vid:hover { text-decoration: underline; }
+.yt-sub-storage-tags {
+  font-size: 10px;
+  color: #71717a;
+  white-space: nowrap;
+}
+.yt-sub-storage-size {
+  font-size: 11px;
+  color: #a1a1aa;
+  white-space: nowrap;
+  min-width: 48px;
+  text-align: right;
+}
+.yt-sub-storage-del {
+  background: none;
+  border: none;
+  color: #52525b;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+.yt-sub-storage-del:hover {
+  color: #ef4444;
+  background: #27272a;
+}
+.yt-sub-text-btn--danger {
+  color: #ef4444;
+}
+.yt-sub-text-btn--danger:hover {
+  color: #f87171;
+}
+
+/* ===== Overlay 自動暫停切換（懶載，hover 才顯示）===== */
+#yt-sub-ov-pause-toggle {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  opacity: 0;
+  transform: scale(0.5);
+  transform-origin: bottom right;
+  transition: opacity 0.15s;
+  pointer-events: all;
+}
+#yt-sub-ov-body:hover #yt-sub-ov-pause-toggle {
+  opacity: 0.5;
+}
+#yt-sub-ov-pause-toggle:hover {
+  opacity: 1;
+}
+/* 開啟時不需 hover 也保持可見 */
+#yt-sub-ov-pause-toggle:has(input:checked) {
+  opacity: 0.5;
+}
+#yt-sub-ov-pause-toggle:has(input:checked):hover {
+  opacity: 1;
+}
+
+/* 右上角複製按鈕 */
+#yt-sub-ov-copy {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 3px;
+  color: rgba(255, 255, 255, 0.8);
+  opacity: 0;
+  transform: scale(0.85);
+  transform-origin: top right;
+  transition: opacity 0.15s, color 0.15s;
+  pointer-events: all;
+  border-radius: 4px;
+  line-height: 0;
+}
+#yt-sub-ov-body:hover #yt-sub-ov-copy {
+  opacity: 0.5;
+}
+#yt-sub-ov-copy:hover {
+  opacity: 1;
+  color: #fff;
 }

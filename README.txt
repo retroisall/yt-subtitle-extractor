@@ -593,3 +593,36 @@ v5.1 更新紀錄（2026-04-25）
   - 使用者手動按播放（Space / 點擊播放鍵）時，自動解除 hover-pause 鎖
   - 換影片時重置所有 hover-pause 狀態，避免殘留誤觸發
 
+v5.2 更新紀錄（2026-04-25）
+============================
+
+【修正】
+
+■ 單句循環（loopSentence）三項 Bug 修正
+
+  1. rewind 誤觸 auto-pause / hover-pause
+     - 症狀：循環播放時每次 rewind 後，若開啟「每句自動暫停」或滑鼠停留在 overlay，
+       影片都會多暫停一次，導致循環無法流暢連續
+     - 原因：rewind 發生後，下一 tick 的 sentenceChanged 誤判為「真的換句」並觸發暫停
+     - 修正：加入 _loopJustRewound 旗標，rewind 執行後的下一 tick 跳過 sentenceChanged
+
+  2. extendSubtitles 讓 loop 等太久才 rewind
+     - 症狀：開啟「延伸字幕顯示」時，loop 要等到下一句開始才 rewind，
+       而不是在當前句說完時立刻重播
+     - 原因：loop 比對的是延伸後的 duration（含補白間隙），而非原始說話時間
+     - 修正：改用 _rawPrimarySubtitles 的原始 duration 計算 rewind 時機
+
+  3. subtitleOffset 導致 loop 時間點偏移
+     - 症狀：設有字幕時間偏移時，loop 的 rewind 時機和 seek 目標都有偏差
+     - 原因：loop check 用 raw video.currentTime，未套用 offset
+     - 修正：loop check 改用 tSub（套用 offset 後），seek target 改為 startTime - offset
+
+【新功能】
+
+■ Overlay 一鍵複製字幕
+  - 字幕 overlay 右上角新增複製圖示按鈕
+  - 滑鼠移入 overlay 時按鈕淡入；點擊後自動複製當前主字幕文字至剪貼簿
+  - 複製成功後圖示短暫切換為勾選符號（1.5 秒後復原），提供明確回饋
+  - hover-pause 凍結狀態下複製的是凍結句，而非下一句
+  - 點擊不影響單句循環（已阻止事件冒泡）
+

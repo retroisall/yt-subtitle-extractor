@@ -63,6 +63,7 @@
   let _lastSyncPrimIdx = -2; // 上一次 sync loop 的 primIdx，用來避免 index 未變時重跑 DOM list 更新
   let _windowContextMenuBound = false; // window capture 右鍵 delegation 是否已綁定（只綁一次）
   let _loopSetMs = 0; // 最後一次設定 loopingIdx 的時間戳，用於防止雙重觸發立即取消
+  let _loopJustRewound = false; // 迴圈剛剛觸發 rewind，下一 tick 的 sentenceChanged 應忽略（避免誤觸 auto-pause）
   const translationCache = {};  // videoId:lang → subtitles array (max 10 entries)
   const TRANSLATION_CACHE_MAX = 10;
 
@@ -149,6 +150,8 @@
       subtitleOffset: 0,    // 字幕時間偏移（秒），正數延後、負數提前，範圍 ±30
       onboardingDone: false, // 是否已完成語言初始設定
       subtitlePosition: null, // 使用者拖曳後的自訂位置 {top:%, left:%}，null=預設
+      hoverPause: true,     // 滑鼠移到字幕 overlay 時，句子結束自動暫停
+      autoPauseEvery: false, // 每句字幕結束後自動暫停（不需 hover）
     };
   }
 
@@ -166,6 +169,90 @@
     script.src = chrome.runtime.getURL('inject.js');
     script.onload = function () { this.remove(); };
     (document.head || document.documentElement).appendChild(script);
+  }
+
+  // ===== 本地字幕儲存管理 =====
+  function renderStorageList() {
+    const listEl = document.getElementById('yt-sub-storage-list');
+    const totalEl = document.getElementById('yt-sub-storage-total');
+    const clearAllBtn = document.getElementById('yt-sub-storage-clear-all');
+    if (!listEl) return;
+
+    listEl.textContent = '載入中…';
+    chrome.storage.local.get(null, allData => {
+      // 收集所有字幕相關 key，按 videoId 分組
+      const videoMap = {}; // videoId → { edited?: size, community?: size }
+      for (const [key, val] of Object.entries(allData)) {
+        const editMatch = key.match(/^editedSubtitles_(.+)$/);
+        const commMatch = key.match(/^lastCommunitySubtitle_(.+)$/);
+        if (editMatch) {
+          const vid = editMatch[1];
+          videoMap[vid] = videoMap[vid] || {};
+          videoMap[vid].edited = JSON.stringify(val).length;
+          videoMap[vid].editedKey = key;
+          if (val.title) videoMap[vid].title = val.title;
+        } else if (commMatch) {
+          const vid = commMatch[1];
+          videoMap[vid] = videoMap[vid] || {};
+          videoMap[vid].community = JSON.stringify(val).length;
+          videoMap[vid].communityKey = key;
+          if (val.title) videoMap[vid].title = videoMap[vid].title || val.title;
+        }
+      }
+
+      const vids = Object.keys(videoMap);
+      listEl.innerHTML = '';
+
+      if (vids.length === 0) {
+        listEl.innerHTML = '<div class="yt-sub-storage-empty">尚無本地字幕儲存</div>';
+        totalEl.textContent = '';
+        clearAllBtn.style.display = 'none';
+        return;
+      }
+
+      let totalBytes = 0;
+      vids.forEach(vid => {
+        const info = videoMap[vid];
+        const bytes = (info.edited || 0) + (info.community || 0);
+        totalBytes += bytes;
+        const kb = (bytes / 1024).toFixed(1);
+
+        const tags = [];
+        if (info.edited) tags.push('自定義');
+        if (info.community) tags.push('社群');
+
+        const row = document.createElement('div');
+        row.className = 'yt-sub-storage-row';
+        const displayName = info.title || vid;
+        row.innerHTML = `
+          <a class="yt-sub-storage-vid" href="https://www.youtube.com/watch?v=${vid}" target="_blank" title="${info.title ? vid : '開啟影片'}">${displayName}</a>
+          <span class="yt-sub-storage-tags">${tags.join('・')}</span>
+          <span class="yt-sub-storage-size">${kb} KB</span>
+          <button class="yt-sub-storage-del" data-vid="${vid}" title="刪除此影片字幕">✕</button>
+        `;
+        listEl.appendChild(row);
+      });
+
+      const totalKb = (totalBytes / 1024).toFixed(1);
+      totalEl.textContent = `共 ${vids.length} 部影片・${totalKb} KB`;
+      clearAllBtn.style.display = '';
+
+      // 單筆刪除
+      listEl.querySelectorAll('.yt-sub-storage-del').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const vid = btn.dataset.vid;
+          const info = videoMap[vid];
+          const keysToRemove = [info.editedKey, info.communityKey].filter(Boolean);
+          chrome.storage.local.remove(keysToRemove, () => renderStorageList());
+        });
+      });
+
+      // 清除全部
+      clearAllBtn.onclick = () => {
+        const allKeys = vids.flatMap(vid => [videoMap[vid].editedKey, videoMap[vid].communityKey].filter(Boolean));
+        chrome.storage.local.remove(allKeys, () => renderStorageList());
+      };
+    });
   }
 
   // ===== 建立 UI =====
@@ -334,9 +421,8 @@
             </div>
 
             <div class="yt-sub-settings-section">
-              <div class="yt-sub-settings-section-title">顯示</div>
+              <div class="yt-sub-settings-section-title">字幕設定</div>
 
-              <div class="yt-sub-settings-sub-title">影片下方的字幕</div>
               <div class="yt-sub-settings-row">
                 <span class="yt-sub-settings-label">原生字幕顏色<span class="yt-sub-tip" data-tip="主字幕（原文）在影片和側邊欄上的顯示顏色。">?</span></span>
                 <div class="yt-sub-swatch-group" id="yt-sub-primary-color-group">
@@ -355,17 +441,15 @@
                   <button class="yt-sub-swatch" data-val="white"  style="background:#e0e0e0" title="白"></button>
                 </div>
               </div>
-
-              <div class="yt-sub-settings-sub-title">側邊欄的字幕</div>
               <div class="yt-sub-settings-row">
-                <span class="yt-sub-settings-label">原生字幕大小<span class="yt-sub-tip" data-tip="側邊欄主字幕的字體縮放比例（100% = 預設大小）。">?</span></span>
+                <span class="yt-sub-settings-label">原生字幕大小<span class="yt-sub-tip" data-tip="主字幕的字體縮放比例，同時套用影片和側邊欄（100% = 預設大小）。">?</span></span>
                 <div class="yt-sub-scale-group">
                   <input type="range" id="yt-sub-primary-scale" min="100" max="500" step="10">
                   <span id="yt-sub-primary-scale-val" class="yt-sub-scale-label"></span>
                 </div>
               </div>
               <div class="yt-sub-settings-row">
-                <span class="yt-sub-settings-label">翻譯字幕大小<span class="yt-sub-tip" data-tip="側邊欄副字幕（翻譯）的字體縮放比例（100% = 預設大小）。">?</span></span>
+                <span class="yt-sub-settings-label">翻譯字幕大小<span class="yt-sub-tip" data-tip="副字幕的字體縮放比例，同時套用影片和側邊欄（100% = 預設大小）。">?</span></span>
                 <div class="yt-sub-scale-group">
                   <input type="range" id="yt-sub-secondary-scale" min="100" max="500" step="10">
                   <span id="yt-sub-secondary-scale-val" class="yt-sub-scale-label"></span>
@@ -408,13 +492,6 @@
                 </label>
               </div>
               <div class="yt-sub-settings-row">
-                <span class="yt-sub-settings-label">單字 Hover 高亮<span class="yt-sub-tip" data-tip="滑鼠移到字幕中的單字上時顯示高亮效果，便於辨識可點擊的單字。">?</span></span>
-                <label class="yt-sub-switch">
-                  <input type="checkbox" id="yt-sub-word-hover">
-                  <span class="yt-sub-switch-slider"></span>
-                </label>
-              </div>
-              <div class="yt-sub-settings-row">
                 <span class="yt-sub-settings-label">點擊單字朗讀<span class="yt-sub-tip" data-tip="點擊字幕中的英文單字時，自動播放該單字的發音。">?</span></span>
                 <label class="yt-sub-switch">
                   <input type="checkbox" id="yt-sub-word-speak">
@@ -442,6 +519,20 @@
                   <span class="yt-sub-switch-slider"></span>
                 </label>
               </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">Hover 暫停<span class="yt-sub-tip" data-tip="滑鼠移到影片字幕上時，句子結束自動暫停，移開後繼續播放。">?</span></span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-hover-pause">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
+              <div class="yt-sub-settings-row">
+                <span class="yt-sub-settings-label">每句自動暫停<span class="yt-sub-tip" data-tip="每句字幕結束後自動暫停，方便跟讀或逐句學習，按播放繼續下一句。">?</span></span>
+                <label class="yt-sub-switch">
+                  <input type="checkbox" id="yt-sub-auto-pause-every">
+                  <span class="yt-sub-switch-slider"></span>
+                </label>
+              </div>
               <div class="yt-sub-settings-row yt-sub-offset-row">
                 <span class="yt-sub-settings-label">字幕時間偏移<span class="yt-sub-tip" data-tip="正值讓字幕延後顯示，負值提前，解決字幕與影片不同步的問題（範圍 ±30 秒）。">?</span></span>
                 <div class="yt-sub-offset-control">
@@ -455,6 +546,15 @@
               </div>
             </div>
 
+            <!-- 本地字幕儲存管理 -->
+            <div class="yt-sub-settings-section">
+              <div class="yt-sub-settings-section-title">本地字幕儲存</div>
+              <div id="yt-sub-storage-list" class="yt-sub-storage-list">載入中…</div>
+              <div class="yt-sub-settings-row" style="margin-top:6px">
+                <span class="yt-sub-settings-label" style="color:#a1a1aa;font-size:11px" id="yt-sub-storage-total"></span>
+                <button id="yt-sub-storage-clear-all" class="yt-sub-text-btn yt-sub-text-btn--danger" style="display:none">清除全部</button>
+              </div>
+            </div>
 
             <!-- 版本號 -->
             <div style="text-align:right;padding:8px 4px 0;font-size:10px;color:#52525b;">
@@ -573,6 +673,10 @@
         // 切到生字本時永遠重新渲染（storage 讀取快，確保即時反映最新存字）
         if (target === 'wordbook') {
           renderWordbook();
+        }
+        // 切到設定時刷新本地字幕儲存列表
+        if (target === 'settings') {
+          renderStorageList();
         }
       });
     });
@@ -753,17 +857,9 @@
       updateCurrentLoopStyle();
     });
 
-    const wordHoverEl = document.getElementById('yt-sub-word-hover');
     const wordSpeakEl = document.getElementById('yt-sub-word-speak');
-    wordHoverEl.checked = settings.wordHover;
     wordSpeakEl.checked = settings.wordSpeak;
-    applyWordHoverStyle();
 
-    wordHoverEl.addEventListener('change', () => {
-      settings.wordHover = wordHoverEl.checked;
-      saveSettings();
-      applyWordHoverStyle();
-    });
     wordSpeakEl.addEventListener('change', () => {
       settings.wordSpeak = wordSpeakEl.checked;
       saveSettings();
@@ -798,6 +894,24 @@
       saveSettings();
     });
 
+    const hoverPauseEl = document.getElementById('yt-sub-hover-pause');
+    hoverPauseEl.checked = settings.hoverPause;
+    hoverPauseEl.addEventListener('change', () => {
+      settings.hoverPause = hoverPauseEl.checked;
+      // 關閉時清除殘留的 hover-pause 狀態
+      if (!settings.hoverPause && _ovPausedForHover) {
+        _ovPausedForHover = false;
+        _ovFrozenSub = null;
+      }
+      saveSettings();
+    });
+
+    const autoPauseEveryEl = document.getElementById('yt-sub-auto-pause-every');
+    autoPauseEveryEl.checked = settings.autoPauseEvery;
+    autoPauseEveryEl.addEventListener('change', () => {
+      settings.autoPauseEvery = autoPauseEveryEl.checked;
+      saveSettings();
+    });
 
     // 字幕時間偏移滑桿
     const offsetSlider = document.getElementById('yt-sub-offset-slider');
@@ -1234,6 +1348,8 @@
     if (overlay) {
       overlay.style.setProperty('--ov-primary-color',   PRIMARY_COLORS[settings.primaryColor]     || '#ffffff');
       overlay.style.setProperty('--ov-secondary-color', SECONDARY_COLORS[settings.secondaryColor] || '#a855f7');
+      overlay.style.setProperty('--ov-primary-fs',   `${(2.2 * pScale / 100).toFixed(2)}cqw`);
+      overlay.style.setProperty('--ov-secondary-fs', `${(1.8 * sScale / 100).toFixed(2)}cqw`);
     }
     applySubtitleSwap();
   }
@@ -1804,6 +1920,7 @@
           seekTo(sub.startTime);
           loopingIdx = index;
           _loopSetMs = Date.now();
+          _loopJustRewound = true; // seek 到目標句，忽略下一 tick 的 sentenceChanged
         }
         updateCurrentLoopStyle();
       });
@@ -3088,7 +3205,52 @@
     // hover-pause：滑鼠進入字幕 body → 字幕結束時暫停；離開 → 恢復播放
     // 注意：#yt-sub-overlay 本體是 pointer-events:none，需綁在 #yt-sub-ov-body（pointer-events:all）
     const ovBody = overlay.querySelector('#yt-sub-ov-body');
-    ovBody.addEventListener('mouseenter', () => { _ovHovering = true; });
+    // 懶載：第一次 mouseenter 才建立自動暫停切換按鈕 + 複製按鈕，之後靠 CSS 控制顯示
+    ovBody.addEventListener('mouseenter', () => {
+      _ovHovering = true;
+      if (!ovBody.querySelector('#yt-sub-ov-pause-toggle')) {
+        // ── 每句自動暫停切換 ──
+        const label = document.createElement('label');
+        label.id = 'yt-sub-ov-pause-toggle';
+        label.className = 'yt-sub-switch';
+        label.title = '每句自動暫停';
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.checked = !!settings.autoPauseEvery;
+        const slider = document.createElement('span');
+        slider.className = 'yt-sub-switch-slider';
+        label.appendChild(chk);
+        label.appendChild(slider);
+        chk.addEventListener('change', e => {
+          e.stopPropagation();
+          settings.autoPauseEvery = chk.checked;
+          // 同步設定頁開關
+          const settingEl = document.getElementById('yt-sub-auto-pause-every');
+          if (settingEl) settingEl.checked = settings.autoPauseEvery;
+          saveSettings();
+        });
+        label.addEventListener('click', e => e.stopPropagation());
+        ovBody.appendChild(label);
+
+        // ── 複製主字幕按鈕 ──
+        const copyBtn = document.createElement('button');
+        copyBtn.id = 'yt-sub-ov-copy';
+        copyBtn.title = '複製字幕';
+        const COPY_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+        const CHECK_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+        copyBtn.innerHTML = COPY_ICON;
+        copyBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          const text = document.getElementById('yt-sub-ov-primary')?.dataset.text || '';
+          if (!text) return;
+          navigator.clipboard.writeText(text).then(() => {
+            copyBtn.innerHTML = CHECK_ICON;
+            setTimeout(() => { copyBtn.innerHTML = COPY_ICON; }, 1500);
+          }).catch(() => {});
+        });
+        ovBody.appendChild(copyBtn);
+      }
+    }, { once: false });
     ovBody.addEventListener('mouseleave', () => {
       _ovHovering = false;
       if (_ovPausedForHover) {
@@ -3736,6 +3898,7 @@
         } else {
           loopingIdx = i;
           _loopSetMs = Date.now();
+          _loopJustRewound = true; // seek 到目標句，忽略下一 tick 的 sentenceChanged
           if (v) { v.currentTime = sub.startTime; v.play().catch(() => {}); }
         }
         updateCurrentLoopStyle();
@@ -4013,7 +4176,7 @@
     // 儲存本地
     overlay.querySelector('#yem-save-btn').addEventListener('click', () => {
       primarySubtitles = _editSubtitles.map(s => ({ ...s }));
-      chrome.storage.local.set({ [`editedSubtitles_${new URLSearchParams(location.search).get('v')}`]: { primarySubtitles: primarySubtitles, secondarySubtitles: secondarySubtitles.map(s => ({ ...s })) } });
+      chrome.storage.local.set({ [`editedSubtitles_${new URLSearchParams(location.search).get('v')}`]: { primarySubtitles: primarySubtitles, secondarySubtitles: secondarySubtitles.map(s => ({ ...s })), title: document.title.replace(' - YouTube', '') } });
       renderSubtitleList();
       startSync();
       setActiveSourceBtn('custom');
@@ -4354,10 +4517,11 @@
   let _seekHandler = null;
   function startSync() {
     if (syncInterval) clearInterval(syncInterval);
-    _lastSyncPrimIdx  = -2; // 重置快取，確保新影片第一幀立即更新列表
-    _currentPrimIdx   = -1; // 新影片重置，避免 hover-pause 誤觸發
+    _lastSyncPrimIdx  = -2;    // 重置快取，確保新影片第一幀立即更新列表
+    _currentPrimIdx   = -1;    // 新影片重置，避免 hover-pause 誤觸發
     _ovPausedForHover = false; // 清除殘留的 hover-pause 狀態
     _ovFrozenSub      = null;  // 清除凍結字幕
+    _loopJustRewound  = false; // 清除迴圈 rewind 旗標
 
     // 字幕同步啟動 → LED 確認進入 has-sub（video 可能已在播放中）
     const videoCheck = document.querySelector('video');
@@ -4394,18 +4558,27 @@
       const video = document.querySelector('video');
       if (!video || !primarySubtitles.length) return;
 
+      // 迴圈 rewind 旗標：僅有效一個 tick，防止 rewind 瞬間誤觸 sentenceChanged
+      const wasLoopRewound = _loopJustRewound;
+      _loopJustRewound = false;
+
       const t = video.currentTime;
       const tSub = t + (settings.subtitleOffset || 0); // 套用使用者設定的時間偏移
       const primIdx = findActiveIndex(primarySubtitles, tSub);
       const primSub = primIdx >= 0 ? primarySubtitles[primIdx] : null;
 
-      // hover-pause：字幕剛結束或切換到下一句，且滑鼠仍在 overlay 上 → 暫停
-      // 先更新凍結狀態，再計算 secSub，確保同一幀內主副字幕都凍結
-      if (_ovHovering && !_ovPausedForHover && !video.paused
-          && _currentPrimIdx >= 0 && primIdx !== _currentPrimIdx) {
-        _ovFrozenSub = primarySubtitles[_currentPrimIdx] ?? null;
-        video.pause();
-        _ovPausedForHover = true;
+      // 句子切換判斷：字幕剛結束或切換到下一句（迴圈 rewind 剛發生時跳過，避免誤觸 auto-pause）
+      const sentenceChanged = _currentPrimIdx >= 0 && primIdx !== _currentPrimIdx && !wasLoopRewound;
+      if (sentenceChanged && !video.paused && !_ovPausedForHover) {
+        // hover-pause：需 hover 且設定開啟
+        const doHoverPause = settings.hoverPause && _ovHovering;
+        // 每句自動暫停：設定開啟即觸發，不需 hover
+        const doAutoPause = settings.autoPauseEvery;
+        if (doHoverPause || doAutoPause) {
+          _ovFrozenSub = primarySubtitles[_currentPrimIdx] ?? null;
+          video.pause();
+          _ovPausedForHover = true;
+        }
       }
       // 手動播放（例如使用者自己按 space）→ 清除 hover-pause 鎖，不干擾後續
       if (_ovPausedForHover && !video.paused) {
@@ -4451,10 +4624,13 @@
       updateCurrentLoopStyle();
 
       // 單句循環：不依賴 primSub，句子間空隙也能正確 loop 回去
+      // 使用原始 duration（未延長），避免 extendSubtitles 讓 loop 等太久
       if (settings.loopSentence && loopingIdx >= 0) {
         const loopSub = primarySubtitles[loopingIdx];
-        if (loopSub && t >= loopSub.startTime + Math.max(loopSub.duration || 0, 1)) {
-          video.currentTime = loopSub.startTime;
+        const rawDuration = (_rawPrimarySubtitles[loopingIdx] ?? loopSub)?.duration;
+        if (loopSub && tSub >= loopSub.startTime + Math.max(rawDuration || 0, 1)) {
+          video.currentTime = loopSub.startTime - (settings.subtitleOffset || 0);
+          _loopJustRewound = true; // 告知下一 tick 跳過 sentenceChanged，避免 auto-pause 誤觸
         }
       }
 
@@ -5051,7 +5227,7 @@
           setActiveSourceBtn('community');
 
           // 記錄此次選擇，下次開啟同影片自動套用
-          chrome.storage.local.set({ [`lastCommunitySubtitle_${videoId}`]: entry });
+          chrome.storage.local.set({ [`lastCommunitySubtitle_${videoId}`]: { ...entry, title: document.title.replace(' - YouTube', '') } });
 
           // 更新狀態文字
           const statusEl = document.getElementById('yt-sub-status');
@@ -5142,7 +5318,7 @@
 
         // 匯入後自動存入 localStorage（與「儲存本地」相同機制）
         const _srtVid = new URLSearchParams(location.search).get('v') || '';
-        if (_srtVid) chrome.storage.local.set({ [`editedSubtitles_${_srtVid}`]: { primarySubtitles: primarySubtitles, secondarySubtitles: secondarySubtitles.map(s => ({ ...s })) } });
+        if (_srtVid) chrome.storage.local.set({ [`editedSubtitles_${_srtVid}`]: { primarySubtitles: primarySubtitles, secondarySubtitles: secondarySubtitles.map(s => ({ ...s })), title: document.title.replace(' - YouTube', '') } });
 
         applyOverlay();
         renderSubtitleList();

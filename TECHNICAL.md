@@ -806,3 +806,74 @@ const secSub = secLookupSub ? findSubAtTime(secondarySubtitles, secLookupSub.sta
 const displaySub = (_ovPausedForHover && _ovFrozenSub) ? _ovFrozenSub : primSub;
 ```
 
+---
+
+## 單句循環（loopSentence）踩坑
+
+### 踩坑 1：rewind 觸發 sentenceChanged → auto-pause 誤觸發
+
+**問題**：每次 loop rewind（`video.currentTime = loopSub.startTime`）發生在 tick T。在 tick T 的最後，`_currentPrimIdx` 被更新為下一句的 index（`primIdx` 此時是下一句）。tick T+1 時，video 已回到 looping 句，`primIdx = loopingIdx`，與 `_currentPrimIdx`（下一句）不同 → `sentenceChanged = true`，若 `autoPauseEvery` 開啟或使用者正在 hover，每次 loop 都會多暫停一次。
+
+**修正**：加 `_loopJustRewound` 旗標。loop check 執行 rewind 時設為 `true`；下一 tick 開始時讀取後立刻清除；`sentenceChanged` 判斷加 `&& !wasLoopRewound`。
+
+```javascript
+// sync loop 開頭
+const wasLoopRewound = _loopJustRewound;
+_loopJustRewound = false;
+
+// sentenceChanged 判斷
+const sentenceChanged = _currentPrimIdx >= 0 && primIdx !== _currentPrimIdx && !wasLoopRewound;
+
+// loop check 結尾
+if (tSub >= loopSub.startTime + Math.max(rawDuration || 0, 1)) {
+  video.currentTime = loopSub.startTime - (settings.subtitleOffset || 0);
+  _loopJustRewound = true;
+}
+```
+
+同樣地，設定 loop 時手動 seek（從字幕清單點擊）也會造成 `sentenceChanged` 誤觸，在設定 `loopingIdx` 時也一併設 `_loopJustRewound = true`。
+
+### 踩坑 2：extendSubtitles 讓 loop 等太久
+
+**問題**：`extendSubtitles` 功能把 `primarySubtitles[i].duration` 延伸到下一句開始前（填滿間隙），loop check 用 `loopSub.duration` 計算結束點，結果等到延伸後的時間才 rewind，明顯比自然說完的時間晚。
+
+**修正**：loop check 改用 `_rawPrimarySubtitles[loopingIdx]?.duration`（未延長的原始值），fallback 到 `loopSub.duration`。
+
+```javascript
+const rawDuration = (_rawPrimarySubtitles[loopingIdx] ?? loopSub)?.duration;
+if (loopSub && tSub >= loopSub.startTime + Math.max(rawDuration || 0, 1)) { ... }
+```
+
+### 踩坑 3：subtitleOffset 讓 loop seek 偏移
+
+**問題**：字幕偏移（subtitleOffset）不存在 subtitle 物件內，而是在 sync loop 查詢時套用（`tSub = t + offset`）。loop check 若用 `t` 比對，offset 非零時 rewind 時機偏差；seek target 若用 `loopSub.startTime`，video 實際停在錯誤位置。
+
+**修正**：loop check 改用 `tSub`，seek target 改為 `loopSub.startTime - offset`。
+
+---
+
+## Overlay 複製按鈕
+
+### 設計要點
+
+複製按鈕（`#yt-sub-ov-copy`）與自動暫停切換按鈕（`#yt-sub-ov-pause-toggle`）採相同的懶載策略：第一次 `mouseenter` 時才建立 DOM，之後靠 CSS 控制顯示／隱藏。
+
+| 元素 | 位置 | 預設 opacity |
+|---|---|---|
+| `#yt-sub-ov-pause-toggle` | `bottom: 6px; right: 8px` | 0（hover 顯示） |
+| `#yt-sub-ov-copy` | `top: 6px; right: 8px` | 0（hover 顯示） |
+
+### 複製來源
+
+直接讀取 `#yt-sub-ov-primary` 的 `dataset.text`，這是 sync loop 每次更新時寫入的值，hover-pause 凍結期間也保持凍結句的文字，不會誤複製到下一句。
+
+```javascript
+const text = document.getElementById('yt-sub-ov-primary')?.dataset.text || '';
+navigator.clipboard.writeText(text).then(() => { /* 切換圖示 1.5s */ });
+```
+
+### 注意事項
+
+- `e.stopPropagation()` 必須加，否則點擊複製會冒泡到 `#yt-sub-ov-body` 的 click handler，意外觸發單句循環的設定／取消。
+- `navigator.clipboard.writeText` 需要頁面在 focus 狀態，YouTube 全螢幕播放時仍可使用（document 保有 focus）。
+
