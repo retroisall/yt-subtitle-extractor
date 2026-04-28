@@ -131,3 +131,18 @@ window.fetch = async function(url, options) {
 - [[background]]
 - [[firebase]]
 - [[專案索引]]
+
+---
+
+## 安全性檢查紀錄
+
+### 2026-04-28 — Git 敏感資訊掃描
+
+| 檔案 | 問題 | 狀態 |
+|------|------|------|
+| `background.js` | admin email 已移入 Firestore `app_config/admin_config` | ✅ 已修 |
+| `vocab-dashboard.js` 第 271 行 | `ADMIN_EMAIL = 'kuoway79@gmail.com'` hardcode 尚未移除 | ⚠️ 待修 |
+| `notes/firestore-rules.md` | admin email 出現 3 處（文件說明用） | ⚠️ 低風險，可遮蔽 |
+| `firebase.js` — `apiKey` / `CLIENT_ID` | Firebase Web API Key 與 OAuth Client ID | ✅ 正常（前端公開設計，安全性靠 Firestore Rules） |
+
+**結論：** `vocab-dashboard.js` 的 `ADMIN_EMAIL` 需比照 `background.js` 改成從 Firestore 讀取。
