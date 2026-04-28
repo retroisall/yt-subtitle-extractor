@@ -1,5 +1,37 @@
-YT Subtitle Demo - YouTube 字幕提取器
-======================================
+YouTube Learning Bar - YouTube 沉浸式語言學習工具
+==================================================
+
+Chrome Store 上架進度（2026-04-28）
+------------------------------------
+
+已完成：
+  [x] manifest.json 更新（名稱 / 版本 5.2 / 描述 / icons / homepage_url）
+  [x] icons/ 目錄建立（16px / 48px / 128px）
+  [x] 打包腳本 package.sh（輸出 yt-subtitle-store.zip，148KB）
+  [x] Admin email 移出公開包（改從 Firestore app_config/admin_config 讀取）
+  [x] Store 截圖 5 張 1280x800（store-screenshots\ 目錄）
+  [x] 隱私政策頁面上線
+      URL：https://retroisall.github.io/youtube-learning-bar-privacy/
+  [x] 隱私政策草稿：notes/privacy-policy-draft.md
+
+待辦（明天繼續）：
+  [ ] Chrome Developer 帳號付費 $5（昨天金流異常 OR_FGPMH_11，明天重試）
+  [ ] 上傳 yt-subtitle-store.zip 到 Chrome Web Store
+  [ ] Store 填寫：簡短說明 / 詳細說明 / 截圖 / 隱私政策 URL
+  [ ] 等待 Google 審查（首次約 1-7 天）
+
+待辦（上架後）：
+  [ ] Firebase Console 建立文件：app_config/admin_config
+      欄位：admin_emails: ["kuoway79@gmail.com"]
+  [ ] 部署 Firestore 規則：firebase deploy --only firestore:rules
+  [ ] 圖示請美術重新設計（目前為暫時佔位符 LB 圖示）
+
+上架用檔案位置：
+  ZIP 包：yt-subtitle-store.zip（148KB，可直接上傳）
+  截圖：store-screenshots\（5 張 1280x800 PNG）
+  隱私政策：https://retroisall.github.io/youtube-learning-bar-privacy/
+
+
 
 安裝說明
 --------

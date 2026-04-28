@@ -11,6 +11,19 @@ let _sessionReady = restoreSession().then(user => {
   if (user) console.log('[YT-SUB] Firebase session 恢復：', user.email);
 }).catch(() => {});
 
+// 管理員 email 從 Firestore app_config/admin_config 讀取並快取
+let _adminEmailsCache = null;
+async function getAdminEmails() {
+  if (_adminEmailsCache) return _adminEmailsCache;
+  try {
+    const doc = await getDoc('app_config/admin_config');
+    _adminEmailsCache = doc?.admin_emails || [];
+  } catch (_) {
+    _adminEmailsCache = [];
+  }
+  return _adminEmailsCache;
+}
+
 // ===== 編輯器：TabId 追蹤 =====
 // 記錄最後一個 active 的 YouTube 分頁
 let lastYtTabId = null;
@@ -271,12 +284,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     // 查詢目前使用者是否有編輯器權限
     case 'fb_checkEditorPermission': {
-      _sessionReady.then(() => {
+      _sessionReady.then(async () => {
         const user = getCurrentUser();
         if (!user) { sendResponse({ ok: true, enabled: false, reason: 'not_logged_in' }); return; }
-        // 管理員帳號預設永遠有編輯權限
-        const ADMIN_EMAILS = ['kuoway79@gmail.com'];
-        if (ADMIN_EMAILS.includes(user.email)) {
+        // 管理員帳號從 Firestore app_config/admin_config 讀取，永遠有編輯權限
+        const adminEmails = await getAdminEmails();
+        if (adminEmails.includes(user.email)) {
           sendResponse({ ok: true, enabled: true });
           return;
         }

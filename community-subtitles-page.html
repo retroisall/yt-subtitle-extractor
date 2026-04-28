@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="zh-TW" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>社群字幕資源庫 — YT Subtitle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & tokens ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #09090b;
+      --surface:   #111113;
+      --surface2:  #18181b;
+      --border:    #27272a;
+      --border2:   #3f3f46;
+      --accent:    #7c3aed;
+      --accent-hi: #9d5eff;
+      --accent-lo: rgba(124,58,237,.12);
+      --text:      #f4f4f5;
+      --muted:     #a1a1aa;
+      --dim:       #52525b;
+      --success:   #22c55e;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Top nav ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(9,9,11,.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 600;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .nav-logo-pill {
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      letter-spacing: .03em;
+    }
+
+    .nav-sep { flex: 1; }
+
+    .nav-count {
+      font-size: 13px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 56px 24px 40px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero h1 {
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -.02em;
+      margin-bottom: 12px;
+    }
+
+    .hero h1 span { color: var(--accent-hi); }
+
+    .hero p {
+      font-size: 15px;
+      color: var(--muted);
+      max-width: 480px;
+      margin-bottom: 32px;
+    }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px 32px;
+    }
+
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 200px;
+      max-width: 340px;
+    }
+
+    .search-wrap svg {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--dim);
+      pointer-events: none;
+    }
+
+    .search-wrap input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      padding: 9px 14px 9px 38px;
+      outline: none;
+      transition: border-color .15s;
+    }
+
+    .search-wrap input::placeholder { color: var(--dim); }
+    .search-wrap input:focus { border-color: var(--accent); }
+
+    .filter-select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      padding: 9px 14px;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      padding-right: 32px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      transition: border-color .15s;
+    }
+
+    .filter-select:focus { border-color: var(--accent); }
+
+    .filter-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 4px;
+    }
+
+    .filter-tab {
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 7px;
+      border: none;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+      color: var(--muted);
+      background: transparent;
+    }
+
+    .filter-tab.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    /* ── Grid ── */
+    .grid-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    /* ── Video card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color .2s, transform .2s, box-shadow .2s;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(124,58,237,.18);
+    }
+
+    /* Thumbnail */
+    .card-thumb {
+      position: relative;
+      aspect-ratio: 16/9;
+      overflow: hidden;
+      background: var(--surface2);
+    }
+
+    .card-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform .3s;
+    }
+
+    .card:hover .card-thumb img { transform: scale(1.04); }
+
+    .card-thumb-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,.6) 0%, transparent 50%);
+    }
+
+    .card-lang-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,.75);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,.12);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 999px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .card-sub-badge {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Body */
+    .card-body {
+      padding: 14px 16px 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: auto;
+    }
+
+    .card-contributor {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .card-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-lo);
+      border: 1px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent-hi);
+      flex-shrink: 0;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .card-date {
+      font-size: 11px;
+      color: var(--dim);
+      font-family: 'DM Mono', monospace;
+    }
+
+    .card-versions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .card-version-chip {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px 28px;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      font-family: 'DM Mono', monospace;
+      color: var(--accent-hi);
+      letter-spacing: -.02em;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--dim);
+      letter-spacing: .02em;
+    }
+
+    .stat-sep {
+      width: 1px;
+      align-self: stretch;
+      background: var(--border);
+    }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 80px 24px;
+      color: var(--dim);
+    }
+
+    .empty svg { margin-bottom: 16px; opacity: .4; }
+    .empty p { font-size: 14px; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--dim);
+    }
+
+    footer a { color: var(--accent-hi); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      nav { padding: 0 16px; }
+      .hero { padding: 40px 16px 28px; }
+      .filter-bar { padding: 0 16px 24px; }
+      .grid-wrap { padding: 0 16px 60px; }
+      .stats-bar { padding: 0 16px 24px; }
+      .grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+    }
+
+    @media (max-width: 400px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">
+    <span class="nav-logo-pill">學習Bar</span>
+    社群字幕資源庫
+  </a>
+  <span class="nav-sep"></span>
+  <span class="nav-count" id="nav-count">12 部影片</span>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>社群<span>字幕</span>資源庫</h1>
+  <p>由學習者共同貢獻的 YouTube 雙語字幕。選一部影片，裝上套件，開始學習。</p>
+</div>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <span class="stat-value">12</span>
+    <span class="stat-label">影片收錄</span>
+  </div>
+  <div class="stat-sep"></div>
+  <div class="stat-item">
+    <span class="stat-value">8</span>
+    <span class="stat-label">貢獻者</span>
+  </div>
+  <div class="stat-sep"></div>
+  <div class="stat-item">
+    <span class="stat-value">347</span>
+    <span class="stat-label">字幕版本</span>
+  </div>
+</div>
+
+<!-- FILTER -->
+<div class="filter-bar">
+  <div class="search-wrap">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" placeholder="搜尋影片標題..." id="search-input" />
+  </div>
+  <div class="filter-tabs">
+    <button class="filter-tab active" data-sort="newest">最新</button>
+    <button class="filter-tab" data-sort="popular">最多字幕</button>
+    <button class="filter-tab" data-sort="contributors">多貢獻者</button>
+  </div>
+</div>
+
+<!-- GRID -->
+<div class="grid-wrap">
+  <div class="grid" id="card-grid">
+    <!-- 動態載入，見 script type="module" -->
+    <div id="loading-state" style="grid-column:1/-1;text-align:center;padding:60px 0;color:var(--muted);font-size:14px;">載入中…</div>
+
+    <!-- Card 1 (靜態佔位，載入後移除) REMOVE_START -->
+    <a class="card" href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank">
+      <div class="card-thumb">
+        <img src="https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg" alt="Never Gonna Give You Up" loading="lazy" />
+        <div class="card-thumb-overlay"></div>
+        <span class="card-lang-badge">EN</span>
+        <span class="card-sub-badge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+          3 版本
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Never Gonna Give You Up — Rick Astley</div>
+        <div class="card-versions">
+          <span class="card-version-chip">繁中</span>
+          <span class="card-version-chip">簡中</span>
+          <span class="card-version-chip">日文</span>
+        </div>
+        <div class="card-meta">
+          <div class="card-contributor">
+            <div class="card-avatar">KW</div>
+            <span>kuoway</span>
+          </div>
+          <span class="card-date">04-19</span>
+        </div>
+      </div>
+    </a>
+
+    <!-- Card 2 -->
+    <a class="card" href="https://www.youtube.com/watch?v=9bZkp7q19f0" target="_blank">
+      <div class="card-thumb">
+        <img src="https://img.youtube.com/vi/9bZkp7q19f0/mqdefault.jpg" alt="Gangnam Style" loading="lazy" />
+        <div class="card-thumb-overlay"></div>
+        <span class="card-lang-badge">KO</span>
+        <span class="card-sub-badge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+          5 版本
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-title">PSY — 강남스타일 (Gangnam Style)</div>
+        <div class="card-versions">
+          <span class="card-version-chip">繁中</span>
+          <span class="card-version-chip">英文</span>
+          <span class="card-version-chip">日文</span>
+          <span class="card-version-chip">+2</span>
+        </div>
+        <div class="card-meta">
+          <div class="card-contributor">
+            <div class="card-avatar">LM</div>
+            <span>lexymoon</span>
+          </div>
+          <span class="card-date">04-18</span>
+        </div>
+      </div>
+    </a>
+
+    <!-- Card 3 -->
+    <a class="card" href="https://www.youtube.com/watch?v=JGwWNGJdvx8" target="_blank">
+      <div class="card-thumb">
+        <img src="https://img.youtube.com/vi/JGwWNGJdvx8/mqdefault.jpg" alt="Ed Sheeran Shape of You" loading="lazy" />
+        <div class="card-thumb-overlay"></div>
+        <span class="card-lang-badge">EN</span>
+        <span class="card-sub-badge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+          2 版本
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Ed Sheeran — Shape of You (Official Music Video)</div>
+        <div class="card-versions">
+          <span class="card-version-chip">繁中</span>
+          <span class="card-version-chip">簡中</span>
+        </div>
+        <div class="card-meta">
+          <div class="card-contributor">
+            <div class="card-avatar">SR</div>
+            <span>starrain</span>
+          </div>
+          <span class="card-date">04-17</span>
+        </div>
+      </div>
+    </a>
+
+    <!-- Card 4 -->
+    <a class="card" href="https://www.youtube.com/watch?v=kffacxfA7G4" target="_blank">
+      <div class="card-thumb">
+        <img src="https://img.youtube.com/vi/kffacxfA7G4/mqdefault.jpg" alt="Baby Justin Bieber" loading="lazy" />
+        <div class="card-thumb-overlay"></div>
+        <span class="card-lang-badge">EN</span>
+        <span class="card-sub-badge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+          1 版本
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Justin Bieber — Baby ft. Ludacris</div>
+        <div class="card-versions">
+          <span class="card-version-chip">繁中</span>
+        </div>
+        <div class="card-meta">
+          <div class="card-contributor">
+            <div class="card-avatar">PH</div>
+            <span>phanta</span>
+          </div>
+          <span class="card-date">04-16</span>
+        </div>
+      </div>
+    </a>
+
+    <!-- Card 5 -->
+    <a class="card" href="https://www.youtube.com/watch?v=CevxZvSJLk8" target="_blank">
+      <div class="card-thumb">
+        <img src="https://img.youtube.com/vi/CevxZvSJLk8/mqdefault.jpg" alt="Katy Perry" loading="lazy" />
+        <div class="card-thumb-overlay"></div>
+        <span class="card-lang-badge">EN</span>
+        <span class="card-sub-badge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+          4 版本
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Katy Perry — Roar (Official)</div>
+        <div class="card-versions">
+          <span class="card-version-chip">繁中</span>
+          <span class="card-version-chip">日文</span>
+          <span class="card-version-chip">韓文</span>
+          <span class="card-version-chip">+1</span>
+        </div>
+        <div class="card-meta">
+          <div class="card-contributor">
+            <div class="card-avatar">MN</div>
+            <span>moonrise</span>
+          </div>
+          <span class="card-date">04-15</span>
+        </div>
+      </div>
+    </a>
+
+    <!-- Card 6 -->
+    <a class="card" href="https://www.youtube.com/watch?v=OPf0YbXqDm0" target="_blank">
+      <div class="card-thumb">
+        <img src="https://img.youtube.com/vi/OPf0YbXqDm0/mqdefault.jpg" alt="Mark Ronson Uptown Funk" loading="lazy" />
+        <div class="card-thumb-overlay"></div>
+        <span class="card-lang-badge">EN</span>
+        <span class="card-sub-badge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+          2 版本
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Mark Ronson — Uptown Funk ft. Bruno Mars</div>
+        <div class="card-versions">
+          <span class="card-version-chip">繁中</span>
+          <span class="card-version-chip">日文</span>
+        </div>
+        <div class="card-meta">
+          <div class="card-contributor">
+            <div class="card-avatar">ZN</div>
+            <span>zenith</span>
+          </div>
+          <span class="card-date">04-14</span>
+        </div>
+      </div>
+    </a>
+
+    <!-- Card 7 -->
+    <a class="card" href="https://www.youtube.com/watch?v=YQHsXMglC9A" target="_blank">
+      <div class="card-thumb">
+        <img src="https://img.youtube.com/vi/YQHsXMglC9A/mqdefault.jpg" alt="Adele Hello" loading="lazy" />
+        <div class="card-thumb-overlay"></div>
+        <span class="card-lang-badge">EN</span>
+        <span class="card-sub-badge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+          6 版本
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-title">Adele — Hello (Official Music Video)</div>
+        <div class="card-versions">
+          <span class="card-version-chip">繁中</span>
+          <span class="card-version-chip">簡中</span>
+          <span class="card-version-chip">日文</span>
+          <span class="card-version-chip">+3</span>
+        </div>
+        <div class="card-meta">
+          <div class="card-contributor">
+            <div class="card-avatar">KW</div>
+            <span>kuoway</span>
+          </div>
+          <span class="card-date">04-13</span>
+        </div>
+      </div>
+    </a>
+
+    <!-- Card 8 -->
+    <a class="card" href="https://www.youtube.com/watch?v=hT_nvWreIhg" target="_blank">
+      <div class="card-thumb">
+        <img src="https://img.youtube.com/vi/hT_nvWreIhg/mqdefault.jpg" alt="Counting Stars" loading="lazy" />
+        <div class="card-thumb-overlay"></div>
+        <span class="card-lang-badge">EN</span>
+        <span class="card-sub-badge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+          3 版本
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-title">OneRepublic — Counting Stars (Official Music Video)</div>
+        <div class="card-versions">
+          <span class="card-version-chip">繁中</span>
+          <span class="card-version-chip">簡中</span>
+          <span class="card-version-chip">法文</span>
+        </div>
+        <div class="card-meta">
+          <div class="card-contributor">
+            <div class="card-avatar">AL</div>
+            <span>alucard</span>
+          </div>
+          <span class="card-date">04-12</span>
+        </div>
+      </div>
+    </a>
+    <!-- REMOVE_END -->
+
+  </div>
+</div>
+
+<footer>
+  由 <a href="#">學習Bar</a> 社群共同貢獻 · 安裝 <a href="#">Chrome 套件</a> 即可使用這些字幕 · <a href="#">如何貢獻？</a>
+</footer>
+
+<script>
+  // ── Extension 偵測 ────────────────────────────────────
+  const EXT_ID = 'lamalndoljdlfflndfiladcehcnipchg';
+
+  function checkExtInstalled() {
+    return new Promise(resolve => {
+      const img = new Image();
+      const timer = setTimeout(() => resolve(false), 1500);
+      img.onload  = () => { clearTimeout(timer); resolve(true);  };
+      img.onerror = () => { clearTimeout(timer); resolve(false); };
+      img.src = `chrome-extension://${EXT_ID}/banner.png?_=${Date.now()}`;
+    });
+  }
+
+  // ── Firebase 設定（僅公開讀，不需登入）────────────────
+  const _FB_KEY     = 'AIzaSyBbuou26FoYbXt1OpMJVLy3m9zz6VDfAM8';
+  const _FB_PROJECT = 'yt-vocab-learner';
+  const _FS_BASE    = `https://firestore.googleapis.com/v1/projects/${_FB_PROJECT}/databases/(default)/documents`;
+
+  function _fromFsValue(val) {
+    if (val.nullValue    !== undefined) return null;
+    if (val.booleanValue !== undefined) return val.booleanValue;
+    if (val.integerValue !== undefined) return parseInt(val.integerValue);
+    if (val.doubleValue  !== undefined) return val.doubleValue;
+    if (val.stringValue  !== undefined) return val.stringValue;
+    if (val.timestampValue !== undefined) return new Date(val.timestampValue);
+    if (val.arrayValue   !== undefined) return (val.arrayValue.values || []).map(_fromFsValue);
+    if (val.mapValue     !== undefined) {
+      const obj = {};
+      for (const [k, v] of Object.entries(val.mapValue.fields || {})) obj[k] = _fromFsValue(v);
+      return obj;
+    }
+    return null;
+  }
+
+  function _fromFsDoc(doc) {
+    const obj = {};
+    for (const [k, v] of Object.entries(doc.fields || {})) obj[k] = _fromFsValue(v);
+    if (doc.name) obj._id = doc.name.split('/').pop();
+    return obj;
+  }
+
+  // Collection group query（跨路徑查詢，需 Firestore rules 支援）
+  async function fsGroupQuery(collectionId, { limit, select } = {}) {
+    const query = {
+      structuredQuery: {
+        select: select ? { fields: select.map(f => ({ fieldPath: f })) } : undefined,
+        from:   [{ collectionId, allDescendants: true }],
+        limit:  limit || 1000,
+      },
+    };
+    const res = await fetch(`${_FS_BASE}:runQuery?key=${_FB_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(query),
+    });
+    const json = await res.json();
+    if (!Array.isArray(json)) throw new Error(json?.error?.message || '查詢失敗');
+    return json.filter(r => r.document).map(r => {
+      const segs = r.document.name.split('/');
+      return { ..._fromFsDoc(r.document), _parentId: segs[segs.length - 3] ?? null };
+    });
+  }
+
+  // ── 狀態 ──────────────────────────────────────────────
+  let allVideos = [];   // [{ videoId, title, entries:[], latestAt, contributors }]
+  let sortKey   = 'newest';
+  let searchQ   = '';
+
+  // ── DOM refs ──────────────────────────────────────────
+  const grid       = document.getElementById('card-grid');
+  const navCount   = document.getElementById('nav-count');
+  const statVideos = document.querySelector('.stat-item:nth-child(1) .stat-value');
+  const statContribs = document.querySelector('.stat-item:nth-child(3) .stat-value');
+  const statVersions = document.querySelector('.stat-item:nth-child(5) .stat-value');
+  const searchInput  = document.getElementById('search-input');
+  const tabs         = document.querySelectorAll('.filter-tab');
+
+  // ── 工具函式 ──────────────────────────────────────────
+  function fmtDate(ts) {
+    if (!ts) return '';
+    const d = new Date(typeof ts === 'number' ? ts : ts.seconds * 1000);
+    return `${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function initials(name) {
+    if (!name) return '?';
+    return name.trim().split(/\s+/).map(w => w[0].toUpperCase()).slice(0, 2).join('');
+  }
+
+  function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // YouTube oembed 取標題（失敗回傳 null）
+  async function fetchTitle(videoId) {
+    try {
+      const r = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+      if (!r.ok) return null;
+      const d = await r.json();
+      return d.title || null;
+    } catch { return null; }
+  }
+
+  // ── 卡片 HTML 生成 ────────────────────────────────────
+  function buildCard(v) {
+    const versionChips = v.entries.slice(0, 3)
+      .map(e => `<span class="card-version-chip">${esc(e.subtitleName || '字幕')}</span>`)
+      .join('');
+    const moreChip = v.entries.length > 3
+      ? `<span class="card-version-chip">+${v.entries.length - 3}</span>` : '';
+
+    const firstAuthor = v.entries[0]?.authorName || '匿名';
+    const uniqueContribs = [...new Set(v.entries.map(e => e.authorName || '匿名'))];
+    const extraContribs = uniqueContribs.length > 1
+      ? `<span style="color:var(--muted);font-size:12px">+${uniqueContribs.length - 1}</span>` : '';
+
+    return `
+    <a class="card" href="https://www.youtube.com/watch?v=${esc(v.videoId)}" target="_blank"
+       data-title="${esc((v.title || v.videoId).toLowerCase())}"
+       data-latest="${v.latestAt}">
+      <div class="card-thumb">
+        <img src="https://img.youtube.com/vi/${esc(v.videoId)}/mqdefault.jpg"
+             alt="${esc(v.title || v.videoId)}" loading="lazy"
+             onerror="this.src='https://img.youtube.com/vi/${esc(v.videoId)}/default.jpg'" />
+        <div class="card-thumb-overlay"></div>
+        <span class="card-sub-badge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+          ${v.entries.length} 版本
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-title">${esc(v.title || v.videoId)}</div>
+        <div class="card-versions">${versionChips}${moreChip}</div>
+        <div class="card-meta">
+          <div class="card-contributor">
+            <div class="card-avatar">${esc(initials(firstAuthor))}</div>
+            <span>${esc(firstAuthor)}</span>
+            ${extraContribs}
+          </div>
+          <span class="card-date">${fmtDate(v.latestAt)}</span>
+        </div>
+      </div>
+    </a>`;
+  }
+
+  // ── 渲染 ──────────────────────────────────────────────
+  function render() {
+    let list = allVideos.filter(v =>
+      !searchQ || (v.title || v.videoId).toLowerCase().includes(searchQ)
+    );
+
+    if (sortKey === 'newest')       list.sort((a,b) => b.latestAt - a.latestAt);
+    else if (sortKey === 'popular') list.sort((a,b) => b.entries.length - a.entries.length);
+    else if (sortKey === 'contributors') {
+      list.sort((a,b) => {
+        const ac = new Set(a.entries.map(e => e.uploaderUid)).size;
+        const bc = new Set(b.entries.map(e => e.uploaderUid)).size;
+        return bc - ac;
+      });
+    }
+
+    // 清空 grid 所有動態內容
+    grid.innerHTML = '';
+
+    if (!list.length) {
+      grid.insertAdjacentHTML('beforeend',
+        '<div style="grid-column:1/-1;text-align:center;padding:60px 0;color:var(--muted);font-size:14px;">沒有找到相符的影片</div>'
+      );
+    } else {
+      grid.insertAdjacentHTML('beforeend', list.map(buildCard).join(''));
+    }
+
+    navCount.textContent = list.length + ' 部影片';
+  }
+
+  // ── 載入資料 ──────────────────────────────────────────
+  async function load() {
+    let allEntries = [];
+    try {
+      allEntries = await fsGroupQuery('entries', {
+        limit:  500,
+        select: ['authorName', 'subtitleName', 'uploadedAt', 'uploaderUid'],
+      });
+    } catch (e) {
+      document.getElementById('loading-state').textContent = '載入失敗：' + e.message;
+      return;
+    }
+
+    // 按 videoId 分組
+    const map = new Map();
+    for (const entry of allEntries) {
+      const vid = entry._parentId;
+      if (!vid) continue;
+      if (!map.has(vid)) map.set(vid, []);
+      map.get(vid).push(entry);
+    }
+
+    // 建立 video 物件（title 先用 videoId 佔位）
+    allVideos = [...map.entries()].map(([videoId, ents]) => ({
+      videoId,
+      title:    null,
+      entries:  ents,
+      latestAt: Math.max(...ents.map(e => e.uploadedAt || 0)),
+    }));
+
+    // 更新統計
+    const totalContribs = new Set(allEntries.map(e => e.uploaderUid).filter(Boolean)).size;
+    if (statVideos)   statVideos.textContent   = allVideos.length;
+    if (statContribs) statContribs.textContent = totalContribs;
+    if (statVersions) statVersions.textContent = allEntries.length;
+
+    // 先渲染（title 顯示 videoId）
+    render();
+
+    // 非同步補抓影片標題
+    await Promise.all(allVideos.map(async v => {
+      v.title = await fetchTitle(v.videoId);
+      // 更新對應卡片標題
+      const card = grid.querySelector(`a[href*="${v.videoId}"]`);
+      if (card && v.title) {
+        const titleEl = card.querySelector('.card-title');
+        if (titleEl) titleEl.textContent = v.title;
+        card.dataset.title = v.title.toLowerCase();
+        const img = card.querySelector('img');
+        if (img) img.alt = v.title;
+      }
+    }));
+  }
+
+  // ── 事件綁定 ──────────────────────────────────────────
+  searchInput.addEventListener('input', () => {
+    searchQ = searchInput.value.toLowerCase().trim();
+    render();
+  });
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      sortKey = tab.dataset.sort;
+      render();
+    });
+  });
+
+  // ── 卡片點擊：偵測套件再導航 ──────────────────────────
+  let _extInstalled = null; // null=未知, true/false=已知
+
+  // 頁面載入時預先偵測（快取結果）
+  checkExtInstalled().then(v => { _extInstalled = v; });
+
+  grid.addEventListener('click', async e => {
+    const card = e.target.closest('a.card');
+    if (!card) return;
+    e.preventDefault();
+
+    const ytUrl = card.href;
+
+    // 若尚未偵測完，等一下
+    if (_extInstalled === null) _extInstalled = await checkExtInstalled();
+
+    if (_extInstalled) {
+      window.open(ytUrl, '_blank');
+    } else {
+      // 未安裝：顯示提示 toast
+      showToast('尚未安裝套件，請先安裝 YT Subtitle 套件後再使用社群字幕。', ytUrl);
+    }
+  });
+
+  function showToast(msg, fallbackUrl) {
+    document.getElementById('ext-toast')?.remove();
+    document.getElementById('ext-backdrop')?.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'ext-backdrop';
+    backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;';
+    backdrop.addEventListener('click', () => {
+      backdrop.remove();
+      document.getElementById('ext-toast')?.remove();
+    });
+    document.body.appendChild(backdrop);
+
+    const toast = document.createElement('div');
+    toast.id = 'ext-toast';
+    toast.innerHTML = `
+      <span>${esc(msg)}</span>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <a href="https://chrome.google.com/webstore" target="_blank"
+           style="background:var(--accent);color:#fff;padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px">
+          安裝套件
+        </a>
+        <button onclick="window.open('${fallbackUrl}','_blank');document.getElementById('ext-toast')?.remove();document.getElementById('ext-backdrop')?.remove()"
+                style="background:transparent;border:1px solid var(--border2);color:var(--muted);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px">
+          直接開啟影片
+        </button>
+        <button onclick="document.getElementById('ext-toast')?.remove();document.getElementById('ext-backdrop')?.remove()"
+                style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:18px;padding:0 4px">✕</button>
+      </div>`;
+    toast.style.cssText = `
+      position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+      background:var(--surface2);border:1px solid var(--border2);
+      border-radius:12px;padding:24px 28px;max-width:420px;width:90%;
+      box-shadow:0 8px 48px rgba(0,0,0,.7);z-index:9999;
+      color:var(--text);font-size:14px;line-height:1.5;`;
+    document.body.appendChild(toast);
+  }
+
+  // ── 啟動 ──────────────────────────────────────────────
+  load();
+</script>
+</body>
+</html>

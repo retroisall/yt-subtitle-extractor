@@ -7,7 +7,18 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // 社群字幕（實際路徑）：所有人可讀，登入用戶可上傳，管理員可刪除
+    // 社群字幕頂層集合（videoId 文件）：公開讀，登入用戶可寫（上傳時自動建立）
+    match /customSubtitles/{videoId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Collection group query 支援（entries 只存在於 customSubtitles 下）
+    match /{path=**}/entries/{entryId} {
+      allow read: if true;
+    }
+
+    // 社群字幕 entries：登入可上傳，管理員可刪除
     match /customSubtitles/{videoId}/entries/{entryId} {
       allow read: if true;
       allow create: if request.auth != null
@@ -16,6 +27,7 @@ service cloud.firestore {
                     && (resource.data.uploaderUid == request.auth.uid
                         || request.auth.token.email == 'kuoway79@gmail.com');
     }
+
 
     // 編輯器權限：
     //   - 使用者可讀自己的 doc（查詢自己是否有權限）
@@ -30,6 +42,13 @@ service cloud.firestore {
                     && request.auth.token.email == 'kuoway79@gmail.com';
       allow read: if request.auth != null
                   && request.auth.token.email == 'kuoway79@gmail.com';
+    }
+
+    // 應用設定（admin email 列表等）：登入可讀，只有管理員可寫
+    match /app_config/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.token.email == 'kuoway79@gmail.com';
     }
 
     // 關鍵字、記憶（GAS 同步）：登入可讀寫
