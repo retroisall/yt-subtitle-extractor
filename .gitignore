@@ -1,2 +1,7 @@
 test.mjs
 node_modules/
+.playwright-profile*/
+dist-store/
+qa-screenshots/
+docs/qa-*
+*.zip
