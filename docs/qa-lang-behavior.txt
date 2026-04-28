@@ -1,0 +1,168 @@
+🔧 套件路徑: D:\dev\chrome字幕套件開發
+📁 截圖目錄: docs/qa-screenshots/lang-behavior/
+📋 測試案例數: 6
+
+
+╔════════════════════════════════════════════════════════════╗
+║  [案例1] 偏好英文，影片有英文手動字幕，應直接載入                                ║
+║  videoId: jNQXAC9IVRw                                        ║
+║  primaryLang: en                                             ║
+╚════════════════════════════════════════════════════════════╝
+  → 導航到: https://www.youtube.com/watch?v=jNQXAC9IVRw&autoplay=0
+  [JS錯誤] Failed to load resource: the server responded with a status of 403 ()
+    [YT-SUB] inject.js 已載入 v10
+    [YT-SUB] 讀取 patch.js 快取：videoId=jNQXAC9IVRw tracks=2
+    [YT-SUB] 讀取 patch.js 快取：videoId=jNQXAC9IVRw tracks=2
+    [YT-SUB] ✅ 快取命中 videoId=jNQXAC9IVRw
+    [YT-SUB] 找到 2 個字幕，傳送中...
+  → 等待字幕狀態穩定...
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: de
+    [YT-SUB] 讀取 patch.js 快取：videoId=jNQXAC9IVRw tracks=2
+    [YT-SUB] 讀取 patch.js 快取：videoId=jNQXAC9IVRw tracks=2
+    [YT-SUB] ✅ 快取命中 videoId=jNQXAC9IVRw
+    [YT-SUB] 找到 2 個字幕，傳送中...
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發播放器載入字幕，等待攔截...
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: de
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發播放器載入字幕，等待攔截...
+  → 狀態列文字: "載入主字幕（英文）..."
+  → 語言下拉: value=".en" text="英文" options=2
+    📸 截圖: docs/qa-screenshots/lang-behavior/001-case1-en-jNQXAC9IVRw.png
+  ✅ [案例1] 偏好英文，影片有英文手動字幕，應直接載入: 無翻譯 loading（不強制翻譯）
+  ✅ [案例1] 偏好英文，影片有英文手動字幕，應直接載入: 主字幕語言正確 (英文) — 狀態: "載入主字幕（英文）..."
+
+╔════════════════════════════════════════════════════════════╗
+║  [案例2] 偏好英文，影片有英文 ASR（及多語言），應直接載入不翻譯                       ║
+║  videoId: dQw4w9WgXcQ                                        ║
+║  primaryLang: en                                             ║
+╚════════════════════════════════════════════════════════════╝
+  → 導航到: https://www.youtube.com/watch?v=dQw4w9WgXcQ&autoplay=0
+  → 等待字幕狀態穩定...
+    [YT-SUB] inject.js 已載入 v10
+    [YT-SUB] 讀取 patch.js 快取：videoId=dQw4w9WgXcQ tracks=6
+    [YT-SUB] 讀取 patch.js 快取：videoId=dQw4w9WgXcQ tracks=6
+    [YT-SUB] ✅ 快取命中 videoId=dQw4w9WgXcQ
+    [YT-SUB] 找到 6 個字幕，傳送中...
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: ja
+    [YT-SUB] 讀取 patch.js 快取：videoId=dQw4w9WgXcQ tracks=6
+    [YT-SUB] 讀取 patch.js 快取：videoId=dQw4w9WgXcQ tracks=6
+    [YT-SUB] ✅ 快取命中 videoId=dQw4w9WgXcQ
+    [YT-SUB] 找到 6 個字幕，傳送中...
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發播放器載入字幕，等待攔截...
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: ja
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發播放器載入字幕，等待攔截...
+  → 狀態列文字: "載入主字幕（英文）..."
+  → 語言下拉: value=".en" text="英文" options=6
+    📸 截圖: docs/qa-screenshots/lang-behavior/002-case2-en-dQw4w9WgXcQ.png
+  ✅ [案例2] 偏好英文，影片有英文 ASR（及多語言），應直接載入不翻譯: 無翻譯 loading（不強制翻譯）
+  ✅ [案例2] 偏好英文，影片有英文 ASR（及多語言），應直接載入不翻譯: 主字幕語言正確 (英文) — 狀態: "載入主字幕（英文）..."
+
+╔════════════════════════════════════════════════════════════╗
+║  [案例3] 偏好日文，影片只有韓語 ASR，語系完全不符，應顯示「此影片無 ja 字幕」，停止不翻譯        ║
+║  videoId: 9bZkp7q19f0                                        ║
+║  primaryLang: ja                                             ║
+╚════════════════════════════════════════════════════════════╝
+  → 導航到: https://www.youtube.com/watch?v=9bZkp7q19f0&autoplay=0
+    [YT-SUB] inject.js 已載入 v10
+    [YT-SUB] 讀取 patch.js 快取：videoId=9bZkp7q19f0 tracks=1
+    [YT-SUB] 讀取 patch.js 快取：videoId=9bZkp7q19f0 tracks=1
+    [YT-SUB] ✅ 快取命中 videoId=9bZkp7q19f0
+    [YT-SUB] 找到 1 個字幕，傳送中...
+  → 等待字幕狀態穩定...
+    [YT-SUB] 讀取 patch.js 快取：videoId=9bZkp7q19f0 tracks=1
+    [YT-SUB] 讀取 patch.js 快取：videoId=9bZkp7q19f0 tracks=1
+    [YT-SUB] ✅ 快取命中 videoId=9bZkp7q19f0
+    [YT-SUB] 找到 1 個字幕，傳送中...
+  → 狀態列文字: "此影片無 ja 字幕"
+  → 語言下拉: value="a.ko" text="韓文 (自動產生) (自動)" options=1
+    📸 截圖: docs/qa-screenshots/lang-behavior/003-case3-ja-9bZkp7q19f0.png
+  ✅ [案例3] 偏好日文，影片只有韓語 ASR，語系完全不符，應顯示「此影片無 ja 字幕」，停止不翻譯: 無翻譯 loading（不強制翻譯）
+  ✅ [案例3] 偏好日文，影片只有韓語 ASR，語系完全不符，應顯示「此影片無 ja 字幕」，停止不翻譯: 正確顯示無字幕訊息 — "此影片無 ja 字幕"
+
+╔════════════════════════════════════════════════════════════╗
+║  [案例4] 偏好英文，影片有多語言字幕（含英文），應直接載入英文字幕，不翻譯                    ║
+║  videoId: kJQP7kiw5Fk                                        ║
+║  primaryLang: en                                             ║
+╚════════════════════════════════════════════════════════════╝
+  → 導航到: https://www.youtube.com/watch?v=kJQP7kiw5Fk&autoplay=0
+    [YT-SUB] inject.js 已載入 v10
+    [YT-SUB] 讀取 patch.js 快取：videoId=kJQP7kiw5Fk tracks=6
+    [YT-SUB] 讀取 patch.js 快取：videoId=kJQP7kiw5Fk tracks=6
+    [YT-SUB] ✅ 快取命中 videoId=kJQP7kiw5Fk
+    [YT-SUB] 找到 6 個字幕，傳送中...
+  → 等待字幕狀態穩定...
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: ja
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發播放器載入字幕，等待攔截...
+    [YT-SUB] 讀取 patch.js 快取：videoId=kJQP7kiw5Fk tracks=6
+    [YT-SUB] 讀取 patch.js 快取：videoId=kJQP7kiw5Fk tracks=6
+    [YT-SUB] ✅ 快取命中 videoId=kJQP7kiw5Fk
+    [YT-SUB] 找到 6 個字幕，傳送中...
+  → 狀態列文字: "載入主字幕（英文 - en）..."
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: ja
+  → 語言下拉: value=".en.nP7-2PuUl7o" text="英文 - en" options=6
+    [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+    [YT-SUB] 觸發播放器載入字幕，等待攔截...
+    📸 截圖: docs/qa-screenshots/lang-behavior/004-case4-en-kJQP7kiw5Fk.png
+  ✅ [案例4] 偏好英文，影片有多語言字幕（含英文），應直接載入英文字幕，不翻譯: 無翻譯 loading（不強制翻譯）
+  ✅ [案例4] 偏好英文，影片有多語言字幕（含英文），應直接載入英文字幕，不翻譯: 主字幕語言正確 (英文 - en) — 狀態: "載入主字幕（英文 - en）..."
+
+╔════════════════════════════════════════════════════════════╗
+║  [案例5] 偏好日文，但影片實際只有英文字幕（tracks=2），應顯示「此影片無 ja 字幕」，停止不翻譯    ║
+║  videoId: YykjpeuMNEk                                        ║
+║  primaryLang: ja                                             ║
+╚════════════════════════════════════════════════════════════╝
+  → 導航到: https://www.youtube.com/watch?v=YykjpeuMNEk&autoplay=0
+  → 等待字幕狀態穩定...
+    [YT-SUB] inject.js 已載入 v10
+    [YT-SUB] 讀取 patch.js 快取：videoId=YykjpeuMNEk tracks=2
+    [YT-SUB] 讀取 patch.js 快取：videoId=YykjpeuMNEk tracks=2
+    [YT-SUB] ✅ 快取命中 videoId=YykjpeuMNEk
+    [YT-SUB] 找到 2 個字幕，傳送中...
+    [YT-SUB] 讀取 patch.js 快取：videoId=YykjpeuMNEk tracks=2
+    [YT-SUB] 讀取 patch.js 快取：videoId=YykjpeuMNEk tracks=2
+    [YT-SUB] ✅ 快取命中 videoId=YykjpeuMNEk
+    [YT-SUB] 找到 2 個字幕，傳送中...
+  → 狀態列文字: "此影片無 ja 字幕"
+  → 語言下拉: value=".en" text="英文" options=2
+    📸 截圖: docs/qa-screenshots/lang-behavior/005-case5-ja-YykjpeuMNEk.png
+  ✅ [案例5] 偏好日文，但影片實際只有英文字幕（tracks=2），應顯示「此影片無 ja 字幕」，停止不翻譯: 無翻譯 loading（不強制翻譯）
+  ✅ [案例5] 偏好日文，但影片實際只有英文字幕（tracks=2），應顯示「此影片無 ja 字幕」，停止不翻譯: 正確顯示無字幕訊息 — "此影片無 ja 字幕"
+
+╔════════════════════════════════════════════════════════════╗
+║  [案例6] 影片因版權限制無法播放（playability=ERROR），套件應顯示「此影片沒有可用字幕」     ║
+║  videoId: OBne7PNiLtQ                                        ║
+║  primaryLang: en                                             ║
+╚════════════════════════════════════════════════════════════╝
+  → 導航到: https://www.youtube.com/watch?v=OBne7PNiLtQ&autoplay=0
+  [JS錯誤] Failed to load resource: the server responded with a status of 404 ()
+  → 等待字幕狀態穩定...
+    [YT-SUB] inject.js 已載入 v10
+    [YT-SUB] 等待 player 資料...
+    [YT-SUB] 等待 player 資料...
+  → 狀態列文字: "切換影片，重新載入..."
+  → 語言下拉: value="null" text="null" options=0
+    📸 截圖: docs/qa-screenshots/lang-behavior/006-case6-en-OBne7PNiLtQ.png
+  ✅ [案例6] 影片因版權限制無法播放（playability=ERROR），套件應顯示「此影片沒有可用字幕」: 無翻譯 loading（不強制翻譯）
+  ✅ [案例6] 影片因版權限制無法播放（playability=ERROR），套件應顯示「此影片沒有可用字幕」: 正確處理無可用字幕情境 — "切換影片，重新載入..."
+    [YT-SUB] 嘗試 Innertube API...
+    [YT-SUB] Innertube 回應: status=200 videoId=? tracks=0 playability=ERROR reason=無法播放影片
+    [YT-SUB] 此影片沒有可用字幕
+
+╔════════════════════════════════════════════════════════════╗
+║  QA 報告 — 字幕主語言選取行為                             ║
+╚════════════════════════════════════════════════════════════╝
+  總計 12 項  ✅ 通過:12  ❌ 失敗:0  ⏭  跳過:0
+
+  截圖目錄: docs/qa-screenshots/lang-behavior/（共 6 張）
+
+  瀏覽器 6 秒後關閉...

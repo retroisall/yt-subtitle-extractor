@@ -1,0 +1,32 @@
+============================================================
+QA 測試報告：下一句 (>) 按鈕 ── 真實字幕場景
+執行時間：2026-04-16T07:37:56.848Z
+目標 URL：https://www.youtube.com/watch?v=3Io-WIiMKpA&t=22s
+擴充功能：d:\dev\chrome字幕套件開發
+規則：禁止假字幕 / 禁止 mock，必須等真實字幕載入
+============================================================
+
+--- 步驟 1：導航到 YouTube 影片 ---
+頁面 domcontentloaded 完成
+
+--- 步驟 2：等待 video element (YouTube player 初始化) ---
+video element 已找到
+video.readyState = 4
+
+--- 步驟 3：等待擴充功能 sidebar (#yt-sub-demo-sidebar) ---
+Sidebar #yt-sub-demo-sidebar 已出現
+
+--- 步驟 4：等待真實字幕載入（最多 30 秒）---
+注意：禁止注入假字幕，必須等擴充功能從 YouTube 拉取真實字幕
+ERROR: 字幕在 30 秒內未載入
+DOM 診斷：{
+  "hasSidebar": true,
+  "hasSubList": true,
+  "subItemCount": 0,
+  "statusText": "載入失敗：字幕回應為空 (status=200)",
+  "statusClass": "yt-sub-status error",
+  "hasOverlay": false
+}
+測試終止：依規定不改用假字幕
+
+整體結果：FAIL ✗ (字幕載入失敗)

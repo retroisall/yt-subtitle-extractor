@@ -1,0 +1,81 @@
+============================================================
+QA 測試報告：下一句 (>) 按鈕
+執行時間：2026-04-16T07:30:23.458Z
+目標 URL：https://www.youtube.com/watch?v=3Io-WIiMKpA&t=22s
+擴充功能：d:\dev\chrome字幕套件開發
+============================================================
+
+--- 步驟 1：導航到 YouTube 影片 ---
+頁面載入完成
+
+--- 步驟 2：等待影片播放器 ---
+影片元素已找到
+
+--- 步驟 3：等待擴充功能 sidebar (#yt-sub-demo-sidebar) ---
+Sidebar 已出現
+
+--- 步驟 4：等待字幕載入（最多 20 秒）---
+字幕狀態：載入主字幕（英文 (自動產生)）...
+
+--- 步驟 5：檢查 #yt-sub-overlay ---
+Overlay 狀態：未出現，改用注入假字幕
+
+--- 步驟 5b：注入假字幕資料 (YT_SUBTITLE_DEMO_SUBTITLE_DATA) ---
+注入 20 句假字幕（t=20s ~ t=80s）
+注入後 overlay 狀態：已出現 ✓
+
+--- 步驟 6：等待 #yt-sub-ov-next 按鈕 ---
+#yt-sub-ov-next 按鈕已出現 ✓
+
+--- 步驟 7：連續點擊 > 按鈕 5 次 ---
+初始影片時間：22.916s
+
+  [點擊 1/5]
+  點擊前影片時間：22.920s
+  點擊後影片時間：24.395s  (差距: 1.474s)  前進: YES ✓
+  overlay 字幕文字：「Today we will learn about testing」
+
+  [點擊 2/5]
+  點擊前影片時間：24.697s
+  點擊後影片時間：27.374s  (差距: 2.677s)  前進: YES ✓
+  overlay 字幕文字：「The next button should advance forward」
+
+  [點擊 3/5]
+  點擊前影片時間：27.689s
+  點擊後影片時間：30.455s  (差距: 2.765s)  前進: YES ✓
+  overlay 字幕文字：「Each click moves to the next sentence」
+
+  [點擊 4/5]
+  點擊前影片時間：30.760s
+  點擊後影片時間：33.383s  (差距: 2.623s)  前進: YES ✓
+  overlay 字幕文字：「This is sentence number five」
+
+  [點擊 5/5]
+  點擊前影片時間：33.690s
+  點擊後影片時間：36.412s  (差距: 2.723s)  前進: YES ✓
+  overlay 字幕文字：「Six keeps going further ahead」
+
+--- 步驟 8：分析結果 ---
+
+時間記錄彙整：
+  初始: 22.916s
+  點擊 1: 22.920s → 24.395s  diff=1.474s  [前進 ✓]  text=「Today we will learn about testing」
+  點擊 2: 24.697s → 27.374s  diff=2.677s  [前進 ✓]  text=「The next button should advance forward」
+  點擊 3: 27.689s → 30.455s  diff=2.765s  [前進 ✓]  text=「Each click moves to the next sentence」
+  點擊 4: 30.760s → 33.383s  diff=2.623s  [前進 ✓]  text=「This is sentence number five」
+  點擊 5: 33.690s → 36.412s  diff=2.723s  [前進 ✓]  text=「Six keeps going further ahead」
+
+判定：
+  每次點擊後時間有前進：PASS ✓
+  未發現同一句循環：PASS ✓
+
+--- [YT-SUB][NAV] Console Logs（完整記錄）---
+[CONSOLE] [YT-SUB][NAV] > clicked base= 0 → nextIdx= 1 same= false target= Today we will learn about testing
+[CONSOLE] [YT-SUB][NAV] > clicked base= 1 → nextIdx= 2 same= false target= The next button should advance forward
+[CONSOLE] [YT-SUB][NAV] > clicked base= 2 → nextIdx= 3 same= false target= Each click moves to the next sentence
+[CONSOLE] [YT-SUB][NAV] > clicked base= 3 → nextIdx= 4 same= false target= This is sentence number five
+[CONSOLE] [YT-SUB][NAV] > clicked base= 4 → nextIdx= 5 same= false target= Six keeps going further ahead
+
+============================================================
+整體結果：PASS ✓
+============================================================

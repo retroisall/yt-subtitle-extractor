@@ -1,0 +1,156 @@
+============================================================
+QA 測試報告：上一句（<）按鈕 ── 播放中 & 暫停中（本地字幕注入場景）
+執行時間：2026-04-22T03:36:36.077Z
+目標 URL：https://www.youtube.com/watch?v=wIpVpJCRwUg
+影片 ID：wIpVpJCRwUg
+擴充功能：d:\dev\chrome字幕套件開發
+字幕來源：本地字幕（editedSubtitles_wIpVpJCRwUg，50 句，每句 3 秒）
+============================================================
+
+--- 步驟 1：建立 CDP session，監聽 extension isolated world ---
+
+--- 步驟 2：導航到 YouTube 影片 ---
+頁面 domcontentloaded 完成
+
+--- 步驟 3：等待 extension isolated world（最多 20 秒）---
+Extension isolated world 取得，contextId=7
+
+--- 步驟 4：寫入本地字幕（editedSubtitles）到 chrome.storage.local ---
+storage.set 結果：成功
+key: editedSubtitles_wIpVpJCRwUg，50 句，時間跨度: 0s ~ 149.8s
+
+--- 步驟 5：等待 sidebar 與字幕還原 ---
+Sidebar 已出現
+字幕狀態：「自定義字幕（已還原，50 句）」→ 還原成功 ✓
+
+--- 步驟 6：等待 #yt-sub-list .yt-sub-item ---
+字幕列表：共 50 個 .yt-sub-item ✓
+
+--- 步驟 7：確認 overlay 與 #yt-sub-ov-prev 存在 ---
+#yt-sub-overlay 附加 ✓
+#yt-sub-ov-prev 存在 ✓
+
+============================================================
+情境：情境 1：播放中連點 Prev 5 次
+起始時間：30s，點擊次數：5，間隔：1200ms，播放中：true
+============================================================
+影片播放中確認：YES ✓
+初始影片時間：30.000s，paused=false
+
+  [點擊 1/5]
+  點擊前：time=30.000s，paused=false，overlay=「Sentence 11: test subtitle text for navigation」
+  點擊後：time=27.000s  diff=-3.000s  往前退=YES ✓  paused=false
+  diff≈-3s 判定：OK ✓
+  overlay 字幕：「Sentence 10: test subtitle text for navigation」
+  NAV log: [CONSOLE] [YT-SUB][NAV] < clicked cur= 10 → newIdx= 9 target= Sentence 10: test subtitle text for navigation  → newIdx=9
+
+  [點擊 2/5]
+  點擊前：time=27.000s，paused=false，overlay=「Sentence 10: test subtitle text for navigation」
+  點擊後：time=24.000s  diff=-3.000s  往前退=YES ✓  paused=false
+  diff≈-3s 判定：OK ✓
+  overlay 字幕：「Sentence 9: test subtitle text for navigation」
+  NAV log: [CONSOLE] [YT-SUB][NAV] < clicked cur= 9 → newIdx= 8 target= Sentence 9: test subtitle text for navigation  → newIdx=8
+
+  [點擊 3/5]
+  點擊前：time=24.000s，paused=false，overlay=「Sentence 9: test subtitle text for navigation」
+  點擊後：time=21.000s  diff=-3.000s  往前退=YES ✓  paused=false
+  diff≈-3s 判定：OK ✓
+  overlay 字幕：「Sentence 8: test subtitle text for navigation」
+  NAV log: [CONSOLE] [YT-SUB][NAV] < clicked cur= 8 → newIdx= 7 target= Sentence 8: test subtitle text for navigation  → newIdx=7
+
+  [點擊 4/5]
+  點擊前：time=21.000s，paused=false，overlay=「Sentence 8: test subtitle text for navigation」
+  點擊後：time=18.000s  diff=-3.000s  往前退=YES ✓  paused=false
+  diff≈-3s 判定：OK ✓
+  overlay 字幕：「Sentence 7: test subtitle text for navigation」
+  NAV log: [CONSOLE] [YT-SUB][NAV] < clicked cur= 7 → newIdx= 6 target= Sentence 7: test subtitle text for navigation  → newIdx=6
+
+  [點擊 5/5]
+  點擊前：time=18.000s，paused=false，overlay=「Sentence 7: test subtitle text for navigation」
+  點擊後：time=15.000s  diff=-3.000s  往前退=YES ✓  paused=false
+  diff≈-3s 判定：OK ✓
+  overlay 字幕：「Sentence 6: test subtitle text for navigation」
+  NAV log: [CONSOLE] [YT-SUB][NAV] < clicked cur= 6 → newIdx= 5 target= Sentence 6: test subtitle text for navigation  → newIdx=5
+
+--- 情境 1：播放中連點 Prev 5 次 結果彙整 ---
+
+時間記錄：
+  點擊 1: 30.000s → 27.000s  diff=-3.000s  [往前退=✓] [≈-3s=✓]
+  點擊 2: 27.000s → 24.000s  diff=-3.000s  [往前退=✓] [≈-3s=✓]
+  點擊 3: 24.000s → 21.000s  diff=-3.000s  [往前退=✓] [≈-3s=✓]
+  點擊 4: 21.000s → 18.000s  diff=-3.000s  [往前退=✓] [≈-3s=✓]
+  點擊 5: 18.000s → 15.000s  diff=-3.000s  [往前退=✓] [≈-3s=✓]
+
+newIdx 記錄：
+  newIdx 序列：9 → 8 → 7 → 6 → 5
+  遞減：YES ✓
+  無重複：YES ✓
+
+判定：
+  ① 每次時間往前退（diff < -0.1s）：PASS ✓
+  ② newIdx 遞減不重複：PASS ✓ (5/5 筆)
+  ③ diff ≈ -3s（退剛好一句）：PASS ✓
+  情境整體：PASS ✓
+
+（等待 2 秒後進入情境 2）
+
+============================================================
+情境：情境 2：暫停中點 Prev 3 次
+起始時間：30s，點擊次數：3，間隔：1000ms，播放中：false
+============================================================
+影片暫停確認：YES ✓
+初始影片時間：30.000s，paused=true
+
+  [點擊 1/3]
+  點擊前：time=30.000s，paused=true，overlay=「Sentence 11: test subtitle text for navigation」
+  點擊後：time=27.000s  diff=-3.000s  往前退=YES ✓  paused=true
+  diff≈-3s 判定：OK ✓
+  overlay 字幕：「Sentence 10: test subtitle text for navigation」
+  NAV log: [CONSOLE] [YT-SUB][NAV] < clicked cur= 10 → newIdx= 9 target= Sentence 10: test subtitle text for navigation  → newIdx=9
+
+  [點擊 2/3]
+  點擊前：time=27.000s，paused=true，overlay=「Sentence 10: test subtitle text for navigation」
+  點擊後：time=24.000s  diff=-3.000s  往前退=YES ✓  paused=true
+  diff≈-3s 判定：OK ✓
+  overlay 字幕：「Sentence 9: test subtitle text for navigation」
+  NAV log: [CONSOLE] [YT-SUB][NAV] < clicked cur= 9 → newIdx= 8 target= Sentence 9: test subtitle text for navigation  → newIdx=8
+
+  [點擊 3/3]
+  點擊前：time=24.000s，paused=true，overlay=「Sentence 9: test subtitle text for navigation」
+  點擊後：time=21.000s  diff=-3.000s  往前退=YES ✓  paused=true
+  diff≈-3s 判定：OK ✓
+  overlay 字幕：「Sentence 8: test subtitle text for navigation」
+  NAV log: [CONSOLE] [YT-SUB][NAV] < clicked cur= 8 → newIdx= 7 target= Sentence 8: test subtitle text for navigation  → newIdx=7
+
+--- 情境 2：暫停中點 Prev 3 次 結果彙整 ---
+
+時間記錄：
+  點擊 1: 30.000s → 27.000s  diff=-3.000s  [往前退=✓] [≈-3s=✓]
+  點擊 2: 27.000s → 24.000s  diff=-3.000s  [往前退=✓] [≈-3s=✓]
+  點擊 3: 24.000s → 21.000s  diff=-3.000s  [往前退=✓] [≈-3s=✓]
+
+newIdx 記錄：
+  newIdx 序列：9 → 8 → 7
+  遞減：YES ✓
+  無重複：YES ✓
+
+判定：
+  ① 每次時間往前退（diff < -0.1s）：PASS ✓
+  ② newIdx 遞減不重複：PASS ✓ (3/3 筆)
+  ③ diff ≈ -3s（退剛好一句）：PASS ✓
+  情境整體：PASS ✓
+
+============================================================
+最終彙整：
+  情境 1（播放中 5 次）：PASS ✓
+    ① 每次往前退：OK
+    ② newIdx 遞減不重複：OK (5/5 筆 NAV log)
+    ③ diff ≈ -3s：OK
+  情境 2（暫停中 3 次）：PASS ✓
+    ① 每次往前退：OK
+    ② newIdx 遞減不重複：OK (3/3 筆 NAV log)
+    ③ diff ≈ -3s：OK
+
+============================================================
+整體結果：PASS ✓
+============================================================

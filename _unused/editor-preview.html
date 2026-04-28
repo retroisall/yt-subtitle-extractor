@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Editor Preview</title>
+  <link rel="stylesheet" href="editor.css">
+  <style>
+    /* 模擬 iframe 影片背景 */
+    #ed-yt-iframe { display: block !important; background: #000; }
+    #ed-video-placeholder { display: none !important; }
+  </style>
+</head>
+<body class="ed-studio">
+  <div id="ed-video-stage">
+    <iframe id="ed-yt-iframe" src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=0" allow="autoplay" title="YouTube"></iframe>
+    <div id="ed-video-placeholder"></div>
+  </div>
+
+  <aside id="ed-panel">
+    <header id="ed-panel-header">
+      <div class="ed-logo">
+        <span class="ed-logo-zh">學習</span><span class="ed-logo-bar">Bar</span>
+      </div>
+      <span id="ed-video-title">Never Gonna Give You Up - Rick Astley</span>
+      <div class="ed-yt-status">
+        <span class="ed-yt-dot alive" id="ed-yt-dot"></span>
+        <span id="ed-yt-label">已連線</span>
+      </div>
+    </header>
+
+    <div id="ed-meta">
+      <input id="ed-author" class="ed-meta-input" type="text" value="Rick_Fan" placeholder="作者暱稱">
+      <input id="ed-subname" class="ed-meta-input" type="text" value="Never Gonna Give You Up 中英字幕" placeholder="字幕名稱">
+      <span class="ed-meta-badge" id="ed-line-count">8 句</span>
+    </div>
+
+    <div id="ed-toolbar">
+      <input id="ed-search" type="search" placeholder="搜尋字幕...">
+      <button class="ed-toggle-btn sync-on">▶ 同步</button>
+      <button class="ed-toggle-btn">⇄ 循環</button>
+      <span id="ed-focus-indicator">第 3 句 / 00:00:18</span>
+    </div>
+
+    <div id="ed-sentence-list">
+
+      <!-- 卡片 1 -->
+      <div class="ed-card">
+        <div class="ed-card-timebar">
+          <span class="ed-card-num">1</span>
+          <span class="ed-card-time">00:00:04 <span class="ed-time-end">→ 00:00:08</span></span>
+          <span class="ed-card-seek-hint">↳ 跳轉</span>
+        </div>
+        <div class="ed-card-body">
+          <div class="ed-card-preview main">We're no strangers to love</div>
+          <div class="ed-card-preview sec">我們對愛情並不陌生</div>
+        </div>
+      </div>
+
+      <!-- 卡片 2 -->
+      <div class="ed-card">
+        <div class="ed-card-timebar">
+          <span class="ed-card-num">2</span>
+          <span class="ed-card-time">00:00:09 <span class="ed-time-end">→ 00:00:13</span></span>
+          <span class="ed-card-seek-hint">↳ 跳轉</span>
+        </div>
+        <div class="ed-card-body">
+          <div class="ed-card-preview main">You know the rules and so do I</div>
+          <div class="ed-card-preview sec">你我都懂這些規則</div>
+        </div>
+      </div>
+
+      <!-- 卡片 3：FOCUS 狀態 -->
+      <div class="ed-card ed-row-focused">
+        <div class="ed-card-timebar">
+          <span class="ed-card-num">3</span>
+          <span class="ed-card-time">00:00:18 <span class="ed-time-end">→ 00:00:22</span></span>
+          <span class="ed-card-seek-hint">↳ 跳轉</span>
+        </div>
+        <div class="ed-card-body">
+          <div class="ed-card-preview main" style="display:none">A full commitment's what I'm thinking of</div>
+          <div class="ed-card-preview sec" style="display:none">完全的承諾是我的想法</div>
+          <div class="ed-card-fields" style="display:flex; flex-direction:column; gap:4px">
+            <span class="ed-field-label">主字幕</span>
+            <textarea class="ed-sub-textarea">A full commitment's what I'm thinking of</textarea>
+            <span class="ed-field-label">副字幕</span>
+            <textarea class="ed-sub-textarea">完全的承諾是我的想法</textarea>
+            <button class="ed-clear-btn">清空此句</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 卡片 4 -->
+      <div class="ed-card">
+        <div class="ed-card-timebar">
+          <span class="ed-card-num">4</span>
+          <span class="ed-card-time">00:00:23 <span class="ed-time-end">→ 00:00:27</span></span>
+          <span class="ed-card-seek-hint">↳ 跳轉</span>
+        </div>
+        <div class="ed-card-body">
+          <div class="ed-card-preview main">You wouldn't get this from any other guy</div>
+          <div class="ed-card-preview sec">這種真情你別無處尋</div>
+        </div>
+      </div>
+
+      <!-- 卡片 5 -->
+      <div class="ed-card">
+        <div class="ed-card-timebar">
+          <span class="ed-card-num">5</span>
+          <span class="ed-card-time">00:00:42 <span class="ed-time-end">→ 00:00:47</span></span>
+          <span class="ed-card-seek-hint">↳ 跳轉</span>
+        </div>
+        <div class="ed-card-body">
+          <div class="ed-card-preview main">Never gonna give you up</div>
+          <div class="ed-card-preview sec">永遠不會放棄你</div>
+        </div>
+      </div>
+
+      <!-- 卡片 6 -->
+      <div class="ed-card">
+        <div class="ed-card-timebar">
+          <span class="ed-card-num">6</span>
+          <span class="ed-card-time">00:00:48 <span class="ed-time-end">→ 00:00:52</span></span>
+          <span class="ed-card-seek-hint">↳ 跳轉</span>
+        </div>
+        <div class="ed-card-body">
+          <div class="ed-card-preview main">Never gonna let you down</div>
+          <div class="ed-card-preview sec">永遠不會讓你失望</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div id="ed-loop-status">
+      <span class="ed-loop-indicator"></span>
+      <span id="ed-loop-text">循環中：第 3 句（00:00:18）</span>
+    </div>
+
+    <footer id="ed-panel-footer">
+      <button class="ed-footer-btn">💾 儲存</button>
+      <button class="ed-footer-btn">匯出</button>
+      <button class="ed-footer-btn primary">分享至社群</button>
+    </footer>
+  </aside>
+
+  <script>
+    // 模擬 textarea 自動高度
+    document.querySelectorAll('.ed-sub-textarea').forEach(ta => {
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+    });
+  </script>
+</body>
+</html>

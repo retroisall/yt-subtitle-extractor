@@ -252,55 +252,56 @@ async function runTest() {
       await new Promise(r => setTimeout(r, 300));
     }
 
-    // ===== T12：ysm-loop-btn 存在（每句都有循環按鈕）=====
-    const loopBtns = await page.evaluate(() =>
-      document.querySelectorAll('.ysm-loop-btn').length
+    // ===== T12：獨立 loop 按鈕已移除，改為點擊卡片背景觸發 =====
+    const noBtns = await page.evaluate(() =>
+      document.querySelector('.ysm-loop-btn') === null
     );
-    results.push(report('T12 每句有循環按鈕', loopBtns > 0, loopBtns + ' 個'));
+    results.push(report('T12 獨立 loop 按鈕已移除（改為卡片點擊）', noBtns));
 
-    // ===== T13：循環按鈕點擊 → active class 加上 =====
-    if (loopBtns > 0) {
+    // ===== T13：點擊卡片背景 → 進入 loop（row 取得 looping class）=====
+    const rows = await page.evaluate(() =>
+      document.querySelectorAll('.ysm-row').length
+    );
+    if (rows > 0) {
       await page.evaluate(() => {
-        document.querySelector('.ysm-loop-btn').click();
+        document.querySelector('.ysm-row .ysm-texts')?.click();
       });
-      await new Promise(r => setTimeout(r, 200));
-      const hasActive = await page.evaluate(() =>
-        document.querySelector('.ysm-loop-btn.active') !== null
+      await new Promise(r => setTimeout(r, 300));
+      const hasLooping = await page.evaluate(() =>
+        document.querySelector('.ysm-row.looping') !== null
       );
-      results.push(report('T13 點循環按鈕 → active class 加上', hasActive));
+      results.push(report('T13 點卡片背景 → row 取得 looping class', hasLooping));
 
-      // 再點一次取消
+      // ===== T14：再次點擊同一卡片 → 取消 loop =====
+      await new Promise(r => setTimeout(r, 350)); // 等 debounce 過
       await page.evaluate(() => {
-        const active = document.querySelector('.ysm-loop-btn.active');
-        if (active) active.click();
+        document.querySelector('.ysm-row.looping')?.querySelector('.ysm-texts')?.click();
       });
-      await new Promise(r => setTimeout(r, 200));
-      const noActive = await page.evaluate(() =>
-        document.querySelector('.ysm-loop-btn.active') === null
+      await new Promise(r => setTimeout(r, 300));
+      const noLooping = await page.evaluate(() =>
+        document.querySelector('.ysm-row.looping') === null
       );
-      results.push(report('T14 再點循環按鈕 → active 取消', noActive));
+      results.push(report('T14 再點同一卡片 → looping class 消失', noLooping));
     }
 
-    // ===== T15：切換不同循環句 → active 立即轉移（不需等 300ms interval）=====
-    if (loopBtns >= 2) {
-      // 先 loop 第一句
-      await page.evaluate(() => document.querySelectorAll('.ysm-loop-btn')[0].click());
-      await new Promise(r => setTimeout(r, 100));
-      // 立即 loop 第二句（不等 300ms）
-      await page.evaluate(() => document.querySelectorAll('.ysm-loop-btn')[1].click());
-      await new Promise(r => setTimeout(r, 100));
-      const activeIdx = await page.evaluate(() => {
-        const btns = document.querySelectorAll('.ysm-loop-btn');
-        return Array.from(btns).findIndex(b => b.classList.contains('active'));
+    // ===== T15：點不同卡片 → looping 立即轉移 =====
+    if (rows >= 2) {
+      // loop 第一句
+      await page.evaluate(() => document.querySelectorAll('.ysm-row')[0].querySelector('.ysm-texts')?.click());
+      await new Promise(r => setTimeout(r, 300));
+      // 換 loop 第二句（不同 row 不受 debounce 限制）
+      await page.evaluate(() => document.querySelectorAll('.ysm-row')[1].querySelector('.ysm-texts')?.click());
+      await new Promise(r => setTimeout(r, 300));
+      const loopingIdx = await page.evaluate(() => {
+        const rows = document.querySelectorAll('.ysm-row');
+        return Array.from(rows).findIndex(r => r.classList.contains('looping'));
       });
-      results.push(report('T15 切換循環句 active 立即轉移', activeIdx === 1,
-        '第 ' + (activeIdx + 1) + ' 句亮起'));
+      results.push(report('T15 切換循環句 looping 立即轉移', loopingIdx === 1,
+        '第 ' + (loopingIdx + 1) + ' 句亮起'));
       // 清掉循環
-      await page.evaluate(() => {
-        const active = document.querySelector('.ysm-loop-btn.active');
-        if (active) active.click();
-      });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 350));
+      await page.evaluate(() => document.querySelector('.ysm-row.looping')?.querySelector('.ysm-texts')?.click());
+      await new Promise(r => setTimeout(r, 300));
     }
 
     // ===== T16：單字 span 出現（buildTokenizedText）=====

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>學習Bar 後台管理</title>
+  <link rel="stylesheet" href="editor.css">
+  <link rel="stylesheet" href="vocab-dashboard.css">
+</head>
+<body>
+
+  <!-- ===== Topbar ===== -->
+  <div id="ed-topbar">
+    <div class="ed-logo" title="學習Bar">
+      <span class="ed-logo-zh">學習</span><span class="ed-logo-bar">Bar</span>
+    </div>
+    <span class="ed-topbar-sep">/</span>
+    <span class="ed-topbar-title">後台管理</span>
+    <div class="vd-auth-area">
+      <span id="vd-user-name" class="vd-user-name"></span>
+      <button id="vd-auth-btn" class="vd-auth-btn">登入 Google</button>
+    </div>
+  </div>
+
+  <!-- ===== Tab 導覽 ===== -->
+  <nav id="vd-tabs">
+    <button class="tab-btn active" data-tab="overview">📊 概覽</button>
+    <button class="tab-btn" data-tab="line-log">💬 LINE紀錄</button>
+    <button class="tab-btn" data-tab="vocab">📚 單字庫</button>
+    <button class="tab-btn" data-tab="keywords">🔑 關鍵字</button>
+    <button class="tab-btn" data-tab="schedule">⏰ 排程</button>
+    <button class="tab-btn" data-tab="memory">🧠 記憶</button>
+    <button class="tab-btn" data-tab="games">🎮 遊戲</button>
+    <button class="tab-btn" data-tab="settings">⚙️ 設定</button>
+    <button class="tab-btn" data-tab="permissions">🔑 權限管理</button>
+  </nav>
+
+  <!-- ===== Tab 內容 ===== -->
+  <div id="vd-content">
+
+    <!-- 概覽 -->
+    <section id="tab-overview" class="tab-panel active">
+      <div class="panel-toolbar">
+        <h2 class="panel-title">系統概覽</h2>
+        <button class="vd-tool-btn" id="overview-refresh">↻ 重整</button>
+      </div>
+      <div id="overview-stats" class="overview-grid">
+        <div class="stat-card"><span class="stat-num" id="ov-line">—</span><span class="stat-lbl">LINE 訊息</span></div>
+        <div class="stat-card"><span class="stat-num" id="ov-vocab">—</span><span class="stat-lbl">單字庫（YT）</span></div>
+        <div class="stat-card"><span class="stat-num" id="ov-learn">—</span><span class="stat-lbl">LINE 單字</span></div>
+        <div class="stat-card"><span class="stat-num" id="ov-kw">—</span><span class="stat-lbl">關鍵字圖片</span></div>
+        <div class="stat-card"><span class="stat-num" id="ov-mem">—</span><span class="stat-lbl">記憶條目</span></div>
+        <div class="stat-card"><span class="stat-num" id="ov-sched">—</span><span class="stat-lbl">有效排程</span></div>
+        <div class="stat-card"><span class="stat-num" id="ov-score">—</span><span class="stat-lbl">遊戲紀錄</span></div>
+      </div>
+      <div id="overview-recent" class="overview-recent">
+        <div class="recent-col">
+          <h3>最新 LINE 訊息</h3>
+          <div id="ov-recent-line" class="recent-list"></div>
+        </div>
+        <div class="recent-col">
+          <h3>最近學習的單字</h3>
+          <div id="ov-recent-vocab" class="recent-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LINE 紀錄 -->
+    <section id="tab-line-log" class="tab-panel">
+      <div class="panel-toolbar">
+        <h2 class="panel-title">LINE 訊息紀錄</h2>
+        <input id="line-search" type="search" class="panel-search" placeholder="搜尋訊息...">
+        <select id="line-filter-type" class="panel-select">
+          <option value="">全部類型</option>
+          <option value="文字">文字</option>
+          <option value="圖片">圖片（檔案）</option>
+          <option value="貼圖">貼圖</option>
+          <option value="位置">位置</option>
+        </select>
+        <button class="vd-tool-btn" id="line-refresh">↻ 重整</button>
+        <button class="vd-tool-btn" id="line-export">↓ CSV</button>
+        <span class="count-badge" id="line-count">0 筆</span>
+      </div>
+      <div class="table-wrap" id="line-table-wrap">
+        <table class="data-table" id="line-table">
+          <thead><tr>
+            <th class="th-num">#</th>
+            <th>時間</th>
+            <th>群組</th>
+            <th>使用者</th>
+            <th>類型</th>
+            <th>訊息內容</th>
+          </tr></thead>
+          <tbody id="line-tbody"></tbody>
+        </table>
+        <div class="state-box" id="line-empty" style="display:none"><div class="state-icon">💬</div><p>尚無訊息紀錄</p></div>
+        <div class="state-box" id="line-loading"><div class="vd-spinner"></div><p>載入中...</p></div>
+      </div>
+    </section>
+
+    <!-- 單字庫 -->
+    <section id="tab-vocab" class="tab-panel">
+      <div class="panel-toolbar">
+        <h2 class="panel-title">單字庫</h2>
+        <div class="tab-subtabs">
+          <button class="subtab-btn active" data-subtab="yt-vocab">YouTube 單字</button>
+          <button class="subtab-btn" data-subtab="line-vocab">LINE 單字</button>
+        </div>
+        <input id="vocab-search" type="search" class="panel-search" placeholder="搜尋...">
+        <select id="vocab-tier" class="panel-select">
+          <option value="">全部等級</option>
+          <option value="A1">A1</option><option value="A2">A2</option>
+          <option value="B1">B1</option><option value="B2">B2</option>
+          <option value="C1">C1</option><option value="C2">C2</option>
+          <option value="unknown">未分級</option>
+        </select>
+        <button class="vd-tool-btn" id="vocab-refresh">↻ 重整</button>
+        <button class="vd-tool-btn" id="vocab-export">↓ CSV</button>
+        <span class="count-badge" id="vocab-count">0 筆</span>
+      </div>
+
+      <!-- YT 單字表格 -->
+      <div class="table-wrap" id="yt-vocab-wrap">
+        <table class="data-table sortable-table" id="yt-vocab-table">
+          <thead><tr>
+            <th class="th-num">#</th>
+            <th class="sortable" data-col="word">單字</th>
+            <th>中文</th>
+            <th class="sortable" data-col="tier">等級</th>
+            <th>例句</th>
+            <th class="sortable" data-col="count">次數</th>
+            <th class="sortable" data-col="addedAt">加入時間</th>
+            <th>影片</th>
+            <th>操作</th>
+          </tr></thead>
+          <tbody id="yt-vocab-tbody"></tbody>
+        </table>
+        <div class="state-box" id="yt-vocab-empty" style="display:none"><div class="state-icon">📚</div><p>YouTube 單字庫為空</p></div>
+        <div class="state-box" id="yt-vocab-loading"><div class="vd-spinner"></div><p>載入中...</p></div>
+      </div>
+
+      <!-- LINE 單字表格 -->
+      <div class="table-wrap" id="line-vocab-wrap" style="display:none">
+        <table class="data-table" id="line-vocab-table">
+          <thead><tr>
+            <th class="th-num">#</th>
+            <th>單字</th>
+            <th>翻譯</th>
+            <th>詞性</th>
+            <th>例句</th>
+            <th>學習者</th>
+            <th>學習時間</th>
+            <th>操作</th>
+          </tr></thead>
+          <tbody id="line-vocab-tbody"></tbody>
+        </table>
+        <div class="state-box" id="line-vocab-empty" style="display:none"><div class="state-icon">📖</div><p>LINE 單字紀錄為空</p></div>
+        <div class="state-box" id="line-vocab-loading"><div class="vd-spinner"></div><p>載入中...</p></div>
+      </div>
+    </section>
+
+    <!-- 關鍵字 -->
+    <section id="tab-keywords" class="tab-panel">
+      <div class="panel-toolbar">
+        <h2 class="panel-title">關鍵字圖片</h2>
+        <button class="vd-tool-btn primary" id="kw-add-btn">+ 新增</button>
+        <button class="vd-tool-btn" id="kw-refresh">↻ 重整</button>
+        <span class="count-badge" id="kw-count">0 組</span>
+      </div>
+      <div id="kw-add-form" class="inline-form" style="display:none">
+        <input id="kw-new-keyword" type="text" placeholder="關鍵字名稱（如 P001）" class="form-input">
+        <input id="kw-new-fileid" type="text" placeholder="Google Drive 檔案 ID" class="form-input">
+        <button class="vd-tool-btn primary" id="kw-save-btn">儲存</button>
+        <button class="vd-tool-btn" id="kw-cancel-btn">取消</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="kw-table">
+          <thead><tr>
+            <th class="th-num">#</th>
+            <th>關鍵字</th>
+            <th>預覽</th>
+            <th>建立者</th>
+            <th>建立時間</th>
+            <th>操作</th>
+          </tr></thead>
+          <tbody id="kw-tbody"></tbody>
+        </table>
+        <div class="state-box" id="kw-empty" style="display:none"><div class="state-icon">🔑</div><p>尚無關鍵字</p></div>
+        <div class="state-box" id="kw-loading"><div class="vd-spinner"></div><p>載入中...</p></div>
+      </div>
+    </section>
+
+    <!-- 排程 -->
+    <section id="tab-schedule" class="tab-panel">
+      <div class="panel-toolbar">
+        <h2 class="panel-title">排程提醒</h2>
+        <select id="sched-filter" class="panel-select">
+          <option value="">全部狀態</option>
+          <option value="PENDING">PENDING</option>
+          <option value="ACTIVE">ACTIVE（每週）</option>
+          <option value="DONE">DONE</option>
+          <option value="EXPIRED">EXPIRED</option>
+        </select>
+        <button class="vd-tool-btn" id="sched-refresh">↻ 重整</button>
+        <span class="count-badge" id="sched-count">0 筆</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="sched-table">
+          <thead><tr>
+            <th class="th-num">#</th>
+            <th>目標 ID</th>
+            <th>建立者</th>
+            <th>目標時間</th>
+            <th>備註</th>
+            <th>狀態</th>
+            <th>建立時間</th>
+            <th>操作</th>
+          </tr></thead>
+          <tbody id="sched-tbody"></tbody>
+        </table>
+        <div class="state-box" id="sched-empty" style="display:none"><div class="state-icon">⏰</div><p>尚無排程</p></div>
+        <div class="state-box" id="sched-loading"><div class="vd-spinner"></div><p>載入中...</p></div>
+      </div>
+    </section>
+
+    <!-- 記憶 -->
+    <section id="tab-memory" class="tab-panel">
+      <div class="panel-toolbar">
+        <h2 class="panel-title">對話記憶</h2>
+        <button class="vd-tool-btn primary" id="mem-add-btn">+ 新增</button>
+        <button class="vd-tool-btn" id="mem-refresh">↻ 重整</button>
+        <span class="count-badge" id="mem-count">0 條</span>
+      </div>
+      <div id="mem-add-form" class="inline-form" style="display:none">
+        <input id="mem-trigger" type="text" placeholder="觸發詞" class="form-input">
+        <input id="mem-response" type="text" placeholder="回覆內容" class="form-input" style="flex:2">
+        <button class="vd-tool-btn primary" id="mem-save-btn">儲存</button>
+        <button class="vd-tool-btn" id="mem-cancel-btn">取消</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="mem-table">
+          <thead><tr>
+            <th class="th-num">#</th>
+            <th>觸發詞</th>
+            <th>回覆內容</th>
+            <th>建立者</th>
+            <th>建立時間</th>
+            <th>操作</th>
+          </tr></thead>
+          <tbody id="mem-tbody"></tbody>
+        </table>
+        <div class="state-box" id="mem-empty" style="display:none"><div class="state-icon">🧠</div><p>尚無記憶條目</p></div>
+        <div class="state-box" id="mem-loading"><div class="vd-spinner"></div><p>載入中...</p></div>
+      </div>
+    </section>
+
+    <!-- 遊戲 -->
+    <section id="tab-games" class="tab-panel">
+      <div class="panel-toolbar">
+        <h2 class="panel-title">遊戲 / 測驗</h2>
+        <div class="tab-subtabs">
+          <button class="subtab-btn active" data-subtab="game-scores">分數紀錄</button>
+          <button class="subtab-btn" data-subtab="game-questions">題目列表</button>
+        </div>
+        <button class="vd-tool-btn" id="game-refresh">↻ 重整</button>
+        <span class="count-badge" id="game-count">0 筆</span>
+      </div>
+      <div class="table-wrap" id="game-scores-wrap">
+        <table class="data-table" id="score-table">
+          <thead><tr>
+            <th class="th-num">#</th>
+            <th>使用者</th>
+            <th>遊玩項目</th>
+            <th>模式</th>
+            <th>分數</th>
+            <th>時間</th>
+          </tr></thead>
+          <tbody id="score-tbody"></tbody>
+        </table>
+        <div class="state-box" id="score-empty" style="display:none"><div class="state-icon">🎮</div><p>尚無遊戲紀錄</p></div>
+        <div class="state-box" id="score-loading"><div class="vd-spinner"></div><p>載入中...</p></div>
+      </div>
+      <div class="table-wrap" id="game-questions-wrap" style="display:none">
+        <table class="data-table" id="questions-table">
+          <thead><tr>
+            <th class="th-num">#</th>
+            <th>遊戲名稱</th>
+            <th>模式</th>
+            <th>章節</th>
+            <th>題目</th>
+            <th>答案</th>
+          </tr></thead>
+          <tbody id="questions-tbody"></tbody>
+        </table>
+        <div class="state-box" id="questions-empty" style="display:none"><div class="state-icon">📝</div><p>尚無題目</p></div>
+        <div class="state-box" id="questions-loading" style="display:none"><div class="vd-spinner"></div><p>載入中...</p></div>
+      </div>
+    </section>
+
+    <!-- 設定 -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="panel-toolbar">
+        <h2 class="panel-title">系統設定</h2>
+      </div>
+      <div class="settings-body">
+        <div class="settings-group">
+          <h3>連線設定</h3>
+          <div class="settings-row">
+            <label>Apps Script URL（gas-line-bot 部署網址）</label>
+            <input id="cfg-gas-url" type="url" class="settings-input" placeholder="https://script.google.com/macros/s/...exec">
+          </div>
+          <div class="settings-row">
+            <label>LINE User ID（推送訊息的對象）</label>
+            <input id="cfg-line-uid" type="text" class="settings-input" placeholder="U1234567890abcdef...">
+            <small>在 LINE Bot 輸入任意訊息後，可在 LINE 紀錄看到你的 userId</small>
+          </div>
+          <button class="vd-tool-btn primary" id="cfg-save-btn">儲存設定</button>
+        </div>
+
+        <div class="settings-group">
+          <h3>Firebase Firestore 安全規則（需手動貼入 Firebase Console）</h3>
+          <pre class="settings-code">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 使用者單字庫（Chrome 套件，需登入）
+    match /users/{uid}/words/{word} {
+      allow read, write: if request.auth != null &amp;&amp; request.auth.uid == uid;
+    }
+    // LINE Bot 資料（Server 端寫入，Dashboard 需登入讀取）
+    match /line_messages/{id}  { allow write: if true; allow read: if request.auth != null; }
+    match /keywords/{id}       { allow write: if true; allow read: if request.auth != null; }
+    match /schedule/{id}       { allow write: if true; allow read: if request.auth != null; }
+    match /memory/{id}         { allow write: if true; allow read: if request.auth != null; }
+    match /learn_words/{id}    { allow write: if true; allow read: if request.auth != null; }
+    match /scores/{id}         { allow write: if true; allow read: if request.auth != null; }
+    match /games/{id}          { allow write: if true; allow read: if request.auth != null; }
+  }
+}</pre>
+        </div>
+
+        <div class="settings-group">
+          <h3>帳號</h3>
+          <div id="settings-user-info"></div>
+          <button class="vd-tool-btn" id="settings-signout-btn" style="margin-top:8px">登出</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-permissions" class="tab-panel">
+      <div id="permissions-admin-only" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+          <h2 style="margin:0">使用者權限管理</h2>
+          <button class="vd-tool-btn" id="perm-refresh-btn">↺ 重新整理</button>
+        </div>
+        <!-- 三層說明 -->
+        <div class="perm-tier-legend">
+          <div class="perm-tier-item">
+            <span class="perm-tier-badge tier-guest">guest</span>
+            <span>未登入 Google — 只能查看雙語原生字幕</span>
+          </div>
+          <div class="perm-tier-item">
+            <span class="perm-tier-badge tier-user">user</span>
+            <span>已登入 — 可使用單字幕 + 翻譯功能</span>
+          </div>
+          <div class="perm-tier-item">
+            <span class="perm-tier-badge tier-editor">editor</span>
+            <span>授權帳號 — 可使用社群字幕等全部功能</span>
+          </div>
+        </div>
+        <!-- 統計列 -->
+        <div id="perm-stats" class="perm-stats"></div>
+        <!-- 篩選 -->
+        <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+          <label style="font-size:13px;color:var(--ed-text2)">篩選：</label>
+          <select id="perm-filter" class="vd-select" style="width:140px">
+            <option value="all">全部</option>
+            <option value="editor">editor（已核准）</option>
+            <option value="user">user（待審核）</option>
+          </select>
+        </div>
+        <table class="data-table" id="perm-table">
+          <thead><tr>
+            <th>Email</th><th>顯示名稱</th><th>申請時間</th><th>權限等級</th><th>操作</th>
+          </tr></thead>
+          <tbody id="perm-tbody"></tbody>
+        </table>
+      </div>
+      <div id="permissions-no-access" style="display:none;padding:40px;text-align:center;color:#71717a">
+        此頁面僅限管理員存取
+      </div>
+    </section>
+
+  </div><!-- #vd-content -->
+
+  <!-- LINE 推播 Modal -->
+  <div id="push-modal" class="modal-overlay" style="display:none">
+    <div class="modal-box">
+      <h3 class="modal-title">📱 推播到 LINE</h3>
+      <p id="push-word-preview" class="push-preview"></p>
+      <div class="modal-footer">
+        <button class="vd-tool-btn" id="push-cancel">取消</button>
+        <button class="vd-tool-btn primary" id="push-confirm">確認推播</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="vocab-dashboard.js"></script>
+</body>
+</html>

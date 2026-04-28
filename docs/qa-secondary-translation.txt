@@ -1,0 +1,73 @@
+=== 次要字幕翻譯真實場景測試 ===
+影片: https://www.youtube.com/watch?v=Juc9F74_sJ8
+時間: 2026-04-17T11:57:47.063Z
+
+前往 YouTube...
+✓ 頁面載入
+✓ 擴充功能側邊欄出現
+
+等待主字幕...
+✗ 主字幕 40s 未載入
+  [YT-SUB] inject.js 已載入 v10
+  [YT-SUB] 讀取 patch.js 快取：videoId=Juc9F74_sJ8 tracks=1
+  [YT-SUB] 讀取 patch.js 快取：videoId=Juc9F74_sJ8 tracks=1
+  [YT-SUB] ✅ 快取命中 videoId=Juc9F74_sJ8
+  [YT-SUB] 找到 1 個字幕，傳送中...
+  [YT-SUB][DUAL] dualEnabled, priorities= [zh-TW] provider= ytlang
+  [YT-SUB][DUAL] lang= zh-TW native= null
+  [YT-SUB][DUAL] ytlang path, base= en
+  [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+  [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+  [YT-SUB] 路徑 YouTube-native: 冷啟動，觸發播放器取得 pot URL（lang=en）
+  [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+  [YT-SUB] 讀取 patch.js 快取：videoId=Juc9F74_sJ8 tracks=1
+  [YT-SUB] 讀取 patch.js 快取：videoId=Juc9F74_sJ8 tracks=1
+  [YT-SUB] ✅ 快取命中 videoId=Juc9F74_sJ8
+  [YT-SUB] 找到 1 個字幕，傳送中...
+  [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+  [YT-SUB] 觸發播放器載入字幕，等待攔截...
+  [YT-SUB][DUAL] dualEnabled, priorities= [zh-TW] provider= ytlang
+  [YT-SUB][DUAL] lang= zh-TW native= null
+  [YT-SUB][DUAL] ytlang path, base= en
+  [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+  [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+  [YT-SUB] 路徑 YouTube-native: 冷啟動，觸發播放器取得 pot URL（lang=en）
+  [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+  [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+  [YT-SUB] 觸發播放器載入字幕，等待攔截...
+  [YT-SUB] 路徑 YouTube-native: 3 秒內未取得 pot URL，降級
+  [YT-SUB] 使用 &tlang= 即時翻譯 vssId=a.en → zh-TW
+  [YT-SUB] 直接 fetch URL: https://www.youtube.com/api/timedtext?v=Juc9F74_sJ8&ei=PyDiaaYbhJ3V3w-st8PBCA&caps=asr&opi=112496729&exp=xpe&xoaf=5&xowf
+  [YT-SUB] 結果(no-auth): status=200 len=0
+  [YT-SUB] 找不到 SAPISID cookie，跳過 auth header
+  [YT-SUB] 補 auth header: ❌ 無
+  [YT-SUB] 結果(auth): status=200 len=0
+  [YT-SUB][DUAL] ytlang error → fallback Google Translate, lang= zh-TW primaryLen= 0
+  [YT-SUB] 路徑 YouTube-native: 3 秒內未取得 pot URL，降級
+  [YT-SUB] 使用 &tlang= 即時翻譯 vssId=a.en → zh-TW
+  [YT-SUB] 直接 fetch URL: https://www.youtube.com/api/timedtext?v=Juc9F74_sJ8&ei=PyDiaaYbhJ3V3w-st8PBCA&caps=asr&opi=112496729&exp=xpe&xoaf=5&xowf
+  [YT-SUB] 結果(no-auth): status=200 len=0
+  [YT-SUB] 找不到 SAPISID cookie，跳過 auth header
+  [YT-SUB] 補 auth header: ❌ 無
+  [YT-SUB] 結果(auth): status=200 len=0
+  [YT-SUB][DUAL] ytlang error → fallback Google Translate, lang= zh-TW primaryLen= 0
+  [YT-SUB] 播放器 4 秒內無回應，改用直接 fetch
+  [YT-SUB] 路徑 YouTube-native: 冷啟動，觸發播放器取得 pot URL（lang=en）
+  [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+  [YT-SUB] 播放器 4 秒內無回應，改用直接 fetch
+  [YT-SUB] 路徑 YouTube-native: 冷啟動，觸發播放器取得 pot URL（lang=en）
+  [YT-SUB] 觸發 YouTube 播放器載入字幕: en
+  [YT-SUB] 路徑 YouTube-native: 3 秒內未取得 pot URL，降級
+  [YT-SUB] 使用 ASR 字幕 vssId=a.en
+  [YT-SUB] 直接 fetch URL: https://www.youtube.com/api/timedtext?v=Juc9F74_sJ8&ei=PyDiaaYbhJ3V3w-st8PBCA&caps=asr&opi=112496729&exp=xpe&xoaf=5&xowf
+  [YT-SUB] 結果(no-auth): status=200 len=0
+  [YT-SUB] 找不到 SAPISID cookie，跳過 auth header
+  [YT-SUB] 補 auth header: ❌ 無
+  [YT-SUB] 結果(auth): status=200 len=0
+  [YT-SUB] 路徑 YouTube-native: 3 秒內未取得 pot URL，降級
+  [YT-SUB] 使用 ASR 字幕 vssId=a.en
+  [YT-SUB] 直接 fetch URL: https://www.youtube.com/api/timedtext?v=Juc9F74_sJ8&ei=PyDiaaYbhJ3V3w-st8PBCA&caps=asr&opi=112496729&exp=xpe&xoaf=5&xowf
+  [YT-SUB] 結果(no-auth): status=200 len=0
+  [YT-SUB] 找不到 SAPISID cookie，跳過 auth header
+  [YT-SUB] 補 auth header: ❌ 無
+  [YT-SUB] 結果(auth): status=200 len=0

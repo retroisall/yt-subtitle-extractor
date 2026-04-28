@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Learning Bar",
+  "version": "5.2",
+  "description": "YouTube 沉浸式語言學習工具：即時字幕顯示、雙語翻譯、單字本、社群字幕分享與詞彙儀表板。",
+  "homepage_url": "https://retroisall.github.io/youtube-learning-bar-privacy/",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": ["storage", "identity", "tabs"],
+  "host_permissions": [
+    "*://www.youtube.com/*",
+    "https://translate.googleapis.com/*",
+    "https://api.dictionaryapi.dev/*",
+    "https://api.datamuse.com/*",
+    "https://firestore.googleapis.com/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*",
+    "https://accounts.google.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*"],
+      "js": ["patch.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["*://www.youtube.com/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js", "banner.png"],
+      "matches": ["*://www.youtube.com/*", "<all_urls>"]
+    },
+    {
+      "resources": ["editor.html", "editor.js", "editor.css", "vocab-dashboard.html", "vocab-dashboard.js", "vocab-dashboard.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
