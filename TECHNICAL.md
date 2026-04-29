@@ -877,3 +877,120 @@ navigator.clipboard.writeText(text).then(() => { /* 切換圖示 1.5s */ });
 - `e.stopPropagation()` 必須加，否則點擊複製會冒泡到 `#yt-sub-ov-body` 的 click handler，意外觸發單句循環的設定／取消。
 - `navigator.clipboard.writeText` 需要頁面在 focus 狀態，YouTube 全螢幕播放時仍可使用（document 保有 focus）。
 
+---
+
+## OAuth PKCE：Web application client 必須帶 client_secret
+
+### 問題
+
+Chrome Extension 使用 `launchWebAuthFlow` + PKCE 取得 authorization code 後，用 code 換 access_token 時，Google 回傳：
+
+```
+error: "invalid_client"
+error_description: "client_secret is missing"
+```
+
+### 原因
+
+OAuth 2.0 規格中，PKCE 本來是為 **public client**（無 client_secret）設計的。但 Google Cloud Console 若建立的是 **Web application** 類型的 OAuth client，Google 仍要求 token exchange 時傳 `client_secret`，即使同時使用了 PKCE。
+
+### 修正
+
+`firebase.js` token exchange body 補上 `client_secret`：
+
+```javascript
+const CLIENT_SECRET = 'GOCSPX-...';
+
+body: new URLSearchParams({
+  code,
+  client_id:     CLIENT_ID,
+  client_secret: CLIENT_SECRET,   // Web application type 必填
+  redirect_uri:  redirectUri,
+  grant_type:    'authorization_code',
+  code_verifier: verifier,
+}),
+```
+
+若要避免帶 secret，需在 Google Cloud Console 將 client 類型改為 **Desktop app**（public client），但 Chrome Extension 目前用 Web application 類型無法省略。
+
+---
+
+## 切換翻譯服務時字幕閃爍（skipPrimary）
+
+### 問題
+
+使用者在側邊欄切換翻譯服務（Google / YouTube 內建）時，主字幕整個消失再重新出現，約 1-2 秒的閃爍。
+
+### 原因
+
+`providerSel.change` handler 直接呼叫 `autoLoadSubtitles(trackList, null)`，此函式會無條件重新抓主字幕（發一次新的 HTTP request），導致 `primarySubtitles = []` → DOM 清空 → 字幕載入後才恢復。
+
+切換翻譯服務時，主字幕來源不變，只有副字幕的翻譯路徑改變，根本不需要重抓主字幕。
+
+### 修正
+
+`autoLoadSubtitles` 新增第三個參數 `skipPrimary`：
+
+```javascript
+function autoLoadSubtitles(tracks, primaryOverride = null, skipPrimary = false) {
+  // ...
+  if (primary && !skipPrimary) {
+    loadSubtitle(primary, 'primary');
+  } else if (!primary && !skipPrimary) {
+    // 顯示「無字幕」訊息
+  }
+  // 副字幕不受 skipPrimary 影響，照常重載
+}
+```
+
+`providerSel.change` handler 呼叫時傳入 `skipPrimary = primarySubtitles.length > 0`：
+
+```javascript
+providerSel.addEventListener('change', () => {
+  settings.translationProvider = providerSel.value;
+  saveSettings();
+  updateTransProviderUI();
+  secondarySubtitles = [];
+  autoLoadSubtitles(trackList, null, primarySubtitles.length > 0);
+});
+```
+
+---
+
+## 懸浮球初次位置錯誤（syncWrapperToPlayer 重試）
+
+### 問題
+
+無字幕影片首次載入時，懸浮球位置停在畫面左上角（0, 0），而非影片右側。
+
+### 原因
+
+`autoLoadSubtitles` 偵測到無可用字幕後呼叫 `collapseSidebar('no-sub')`，`collapseSidebar` 內立即呼叫 `syncWrapperToPlayer()` 對齊位置。但此時 YouTube 播放器（`#movie_player`）可能尚未渲染到 DOM，`querySelector` 回傳 `null`，位置同步直接 return 失效。
+
+### 修正
+
+兩處補丁：
+
+**1. `collapseSidebar('no-sub')` 呼叫點補重試：**
+
+```javascript
+collapseSidebar('no-sub');
+setTimeout(() => syncWrapperToPlayer(), 300);
+setTimeout(() => syncWrapperToPlayer(), 1000);
+```
+
+**2. `syncWrapperToPlayer` 自身加 player 不存在時的自動重試：**
+
+```javascript
+function syncWrapperToPlayer() {
+  const player = document.querySelector('#movie_player');
+  if (!player) {
+    setTimeout(() => syncWrapperToPlayer(), 300);
+    return;
+  }
+  // ...原有對齊邏輯
+}
+```
+
+300ms 重試通常足夠；1000ms 作為保底，確保慢速機器也能對齊。
+
