@@ -976,14 +976,13 @@
     chrome.runtime.sendMessage({ type: 'fb_getUser' }, res => {
       if (res?.user) {
         updateAccountUI(res.user);
-        _registerAndCheckEditorPermission();
         _refreshUserTier();
       } else {
-        _applyTierGates(); // guest 狀態下立即鎖定社群字幕 UI
+        _applyTierGates(); // guest 狀態下立即更新社群字幕 UI
         setTimeout(() => {
           chrome.runtime.sendMessage({ type: 'fb_getUser' }, res2 => {
             updateAccountUI(res2?.user || null);
-            if (res2?.user) { _registerAndCheckEditorPermission(); _refreshUserTier(); }
+            if (res2?.user) { _refreshUserTier(); }
             else _applyTierGates();
           });
         }, 1500);
@@ -1003,7 +1002,6 @@
             btn.disabled = false;
             if (r?.ok) {
             updateAccountUI(r.user);
-            _registerAndCheckEditorPermission();
             _refreshUserTier(() => {
               // 登入後補跑翻譯（若 primary 已載入但翻譯被 guest 擋住）
               if (_userTier !== 'guest' && primarySubtitles.length && !secondarySubtitles.length && settings.dualEnabled) {
@@ -3193,7 +3191,14 @@
         <div id="yt-sub-ov-primary"></div>
         <div id="yt-sub-ov-secondary"></div>
       </div>
-      <button id="yt-sub-ov-next" class="yt-sub-ov-nav"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+      <div id="yt-sub-ov-right-col">
+        <button id="yt-sub-ov-copy" title="複製字幕"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+        <button id="yt-sub-ov-next" class="yt-sub-ov-nav"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <label id="yt-sub-ov-pause-toggle" class="yt-sub-switch" title="每句自動暫停">
+          <input type="checkbox" id="yt-sub-ov-pause-chk">
+          <span class="yt-sub-switch-slider"></span>
+        </label>
+      </div>
     `;
     const player = document.querySelector('#movie_player');
     if (player) player.appendChild(overlay);
@@ -3203,54 +3208,43 @@
 
     // 右鍵 delegation 由 initWindowContextMenu() 在 window 層統一處理，此處不再重複綁定
 
+    // 複製按鈕 handler
+    const COPY_ICON = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+    const CHECK_ICON = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+    const copyBtn = overlay.querySelector('#yt-sub-ov-copy');
+    if (copyBtn) {
+      copyBtn.innerHTML = COPY_ICON;
+      copyBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        const text = document.getElementById('yt-sub-ov-primary')?.dataset.text || '';
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+          copyBtn.innerHTML = CHECK_ICON;
+          setTimeout(() => { copyBtn.innerHTML = COPY_ICON; }, 1500);
+        }).catch(() => {});
+      });
+    }
+
+    // auto-pause toggle handler（已在 HTML 中，直接綁）
+    const pauseChk = overlay.querySelector('#yt-sub-ov-pause-chk');
+    if (pauseChk) {
+      pauseChk.checked = !!settings.autoPauseEvery;
+      pauseChk.addEventListener('change', e => {
+        e.stopPropagation();
+        settings.autoPauseEvery = pauseChk.checked;
+        const settingEl = document.getElementById('yt-sub-auto-pause-every');
+        if (settingEl) settingEl.checked = settings.autoPauseEvery;
+        saveSettings();
+      });
+      overlay.querySelector('#yt-sub-ov-pause-toggle')?.addEventListener('click', e => e.stopPropagation());
+    }
+
     // hover-pause：滑鼠進入字幕 body → 字幕結束時暫停；離開 → 恢復播放
     // 注意：#yt-sub-overlay 本體是 pointer-events:none，需綁在 #yt-sub-ov-body（pointer-events:all）
     const ovBody = overlay.querySelector('#yt-sub-ov-body');
     // 懶載：第一次 mouseenter 才建立自動暫停切換按鈕 + 複製按鈕，之後靠 CSS 控制顯示
     ovBody.addEventListener('mouseenter', () => {
       _ovHovering = true;
-      if (!ovBody.querySelector('#yt-sub-ov-pause-toggle')) {
-        // ── 每句自動暫停切換 ──
-        const label = document.createElement('label');
-        label.id = 'yt-sub-ov-pause-toggle';
-        label.className = 'yt-sub-switch';
-        label.title = '每句自動暫停';
-        const chk = document.createElement('input');
-        chk.type = 'checkbox';
-        chk.checked = !!settings.autoPauseEvery;
-        const slider = document.createElement('span');
-        slider.className = 'yt-sub-switch-slider';
-        label.appendChild(chk);
-        label.appendChild(slider);
-        chk.addEventListener('change', e => {
-          e.stopPropagation();
-          settings.autoPauseEvery = chk.checked;
-          // 同步設定頁開關
-          const settingEl = document.getElementById('yt-sub-auto-pause-every');
-          if (settingEl) settingEl.checked = settings.autoPauseEvery;
-          saveSettings();
-        });
-        label.addEventListener('click', e => e.stopPropagation());
-        ovBody.appendChild(label);
-
-        // ── 複製主字幕按鈕 ──
-        const copyBtn = document.createElement('button');
-        copyBtn.id = 'yt-sub-ov-copy';
-        copyBtn.title = '複製字幕';
-        const COPY_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
-        const CHECK_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-        copyBtn.innerHTML = COPY_ICON;
-        copyBtn.addEventListener('click', e => {
-          e.stopPropagation();
-          const text = document.getElementById('yt-sub-ov-primary')?.dataset.text || '';
-          if (!text) return;
-          navigator.clipboard.writeText(text).then(() => {
-            copyBtn.innerHTML = CHECK_ICON;
-            setTimeout(() => { copyBtn.innerHTML = COPY_ICON; }, 1500);
-          }).catch(() => {});
-        });
-        ovBody.appendChild(copyBtn);
-      }
     }, { once: false });
     ovBody.addEventListener('mouseleave', () => {
       _ovHovering = false;
@@ -3605,12 +3599,11 @@
         onDone?.();
         return;
       }
-      chrome.runtime.sendMessage({ type: 'fb_checkEditorPermission' }, r => {
-        _editorEnabled = r?.enabled === true;
-        _userTier = _editorEnabled ? 'editor' : 'user';
-        _applyTierGates();
-        onDone?.();
-      });
+      // 已登入即自動開通 editor 功能
+      _editorEnabled = true;
+      _userTier = 'editor';
+      _applyTierGates();
+      onDone?.();
     });
   }
 
@@ -3620,15 +3613,7 @@
     // 社群字幕 option：非 editor 顯示鎖頭，但仍可選（選後顯示提示）
     const communityOpt = document.querySelector('#yt-sub-source-select option[value="community"]');
     if (communityOpt) {
-      if (_userTier === 'editor') {
-        // 由 fetchCommunitySubtitles 決定文字與 disabled 狀態
-      } else if (_userTier === 'user') {
-        communityOpt.textContent = '🔒 社群字幕（需申請權限）';
-        communityOpt.disabled = false;
-      } else {
-        communityOpt.textContent = '🔒 社群字幕（需登入）';
-        communityOpt.disabled = false;
-      }
+      // 所有人都能看社群字幕，由 fetchCommunitySubtitles 決定文字與 disabled 狀態
     }
   }
 
@@ -5075,10 +5060,9 @@
         if (s) { s.textContent = `自定義字幕（已還原，${savedPrimary.length} 句）`; s.className = 'yt-sub-status success'; }
         return;
       }
-      // 沒有自定義字幕 → 嘗試還原社群字幕（需 editor 權限）
+      // 沒有自定義字幕 → 嘗試還原上次快取的社群字幕
       chrome.storage.local.get(`lastCommunitySubtitle_${videoId}`, stored => {
         if (customSubtitleActive) return;
-        if (_userTier !== 'editor') { onNotFound?.(); return; } // 非授權帳號不還原社群字幕
         const savedComm = stored[`lastCommunitySubtitle_${videoId}`];
         if (!savedComm) { onNotFound?.(); return; }
         customSubtitleActive = true;
@@ -5108,8 +5092,6 @@
   function fetchCommunitySubtitles() {
     const videoId = new URLSearchParams(location.search).get('v') || '';
     if (!videoId) return;
-    // 非 editor 不查詢 Firestore，節省請求；UI 已由 _applyTierGates 顯示鎖頭
-    if (_userTier !== 'editor') return;
 
     chrome.runtime.sendMessage({ type: 'fb_getCommunitySubtitles', videoId }, (res) => {
       if (!res?.ok || !res.entries?.length) return;
@@ -5127,30 +5109,6 @@
   function showCommunitySubtitlePicker() {
     const videoId = new URLSearchParams(location.search).get('v') || '';
     if (!videoId) return;
-
-    // 權限檢查
-    if (_userTier !== 'editor') {
-      const statusEl = document.getElementById('yt-sub-status');
-      // 還原 source select 到預設
-      const srcSel = document.getElementById('yt-sub-source-select');
-      if (srcSel) srcSel.value = customSubtitleActive ? (srcSel.dataset.prevSource || 'default') : 'default';
-      if (_userTier === 'guest') {
-        if (statusEl) {
-          statusEl.className = 'yt-sub-status';
-          statusEl.innerHTML = '社群字幕需登入 Google 帳號 <button class="yt-sub-tier-gate-btn" id="yt-sub-tier-comm-login">登入</button>';
-          document.getElementById('yt-sub-tier-comm-login')?.addEventListener('click', () => {
-            document.getElementById('yt-sub-account-btn')?.click();
-          });
-        }
-      } else {
-        // 'user' — 已登入但未獲授權
-        if (statusEl) {
-          statusEl.textContent = '社群字幕需要編輯器權限，請聯絡管理員申請';
-          statusEl.className = 'yt-sub-status';
-        }
-      }
-      return;
-    }
 
     // 移除舊的 picker（避免重複）
     document.getElementById('yt-sub-community-picker')?.remove();
