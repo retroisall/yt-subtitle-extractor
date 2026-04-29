@@ -1783,8 +1783,8 @@
           if (native) { loadSubtitle(native, 'secondary'); loaded = true; break; }
         }
 
-        // 需要翻譯：未登入 guest 不允許
-        if (_userTier === 'guest') {
+        // 需要翻譯：ytlang provider 且 guest 不允許（google translate 開放所有人使用）
+        if (_userTier === 'guest' && settings.translationProvider === 'ytlang') {
           _showTranslationGate();
           loaded = true;
           break;
@@ -1809,9 +1809,10 @@
       }
 
       if (!loaded && priorities.length > 0) {
-        if (_userTier === 'guest') { _showTranslationGate(); }
-        else {
-          const lang = priorities[0].startsWith('tlang:') ? priorities[0].slice(6) : priorities[0];
+        const lang = priorities[0].startsWith('tlang:') ? priorities[0].slice(6) : priorities[0];
+        if (_userTier === 'guest' && settings.translationProvider === 'ytlang') {
+          _showTranslationGate();
+        } else {
           if (settings.translationProvider === 'ytlang') {
             if (base) loadSubtitle(base, 'secondary', lang);
           } else {
