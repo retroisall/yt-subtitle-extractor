@@ -9,6 +9,40 @@
 
 ---
 
+## 自動化測試：vocab-dashboard 後台管理系統
+
+```bash
+# 執行一次性完整測試（T1~T10，含 QA 後門登入）
+node tests/qa_vocab_dashboard.mjs
+```
+
+### 測試項目（T1~T10）
+| 項目 | 說明 |
+|------|------|
+| T1 | 頁面正常載入（background dashboard_open） |
+| T2 | 所有分頁按鈕存在（overview/line-log/vocab/keywords/schedule/memory/games/settings/permissions） |
+| T3 | 登入按鈕初始顯示「登入 Google」 |
+| T4 | 登入按鈕只觸發一次 OAuth 彈窗（不雙彈窗） |
+| T5 | QA 後門登入（`window.__qaSetUser`，不需要真實 Google 帳號） |
+| T6 | 概覽分頁有內容，無 JS 錯誤 |
+| T7 | 生字庫分頁表格存在（0 筆也不崩潰） |
+| T8 | 關鍵字分頁表格存在 |
+| T9 | 設定分頁有內容 |
+| T10 | 登出成功，按鈕恢復「登入 Google」 |
+
+### QA 後門架構（不進 git 原則）
+- **firebase.js**：`_refreshIdToken` 偵測 `'__qa_mock_token__'` sentinel，不打 Google API
+- **vocab-dashboard.js**：`window.__qaSetUser(user)` / `window.__qaSignOut()` 直接操作模組閉包
+  - 繞開 MV3 service worker async message 的 Playwright 限制
+  - `__qaSetUser` 設定登出按鈕的 onclick 為 `__qaSignOut`（避免 `fb_signOut` async handler 失敗）
+- **不需要**：真實 Google 帳號、OAuth 流程、Firebase 連線
+
+### 已知限制
+- T6/T7/T8 的 Firestore 查詢會失敗（mock token 被拒），但表格元素依然渲染
+- MV3 SW async message handler 在 Playwright 下全部 "port closed"，只有同步 handler 可靠
+
+---
+
 ## Part 1：靜態代碼檢查（每次必做）
 
 ### A. Manifest 層

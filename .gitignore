@@ -5,3 +5,4 @@ dist-store/
 qa-screenshots/
 docs/qa-*
 *.zip
+.gstack/

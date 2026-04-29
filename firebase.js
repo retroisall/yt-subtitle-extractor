@@ -6,8 +6,9 @@ const FIREBASE_CONFIG = {
   projectId: 'yt-vocab-learner',
 };
 
-const CLIENT_ID   = '778663949144-hc65i88kr5mr1h5ap9npmcoh6gq6t0c7.apps.googleusercontent.com';
-const REDIRECT_URI = chrome.identity.getRedirectURL();
+const CLIENT_ID     = '778663949144-hc65i88kr5mr1h5ap9npmcoh6gq6t0c7.apps.googleusercontent.com';
+const CLIENT_SECRET = 'REDACTED_CLIENT_SECRET';
+const REDIRECT_URI  = chrome.identity.getRedirectURL();
 
 // ===== 認證狀態 =====
 let _idToken     = null;
@@ -64,6 +65,7 @@ export async function signInWithGoogle() {
             body: new URLSearchParams({
               code,
               client_id:     CLIENT_ID,
+              client_secret: CLIENT_SECRET,
               redirect_uri:  redirectUri,
               grant_type:    'authorization_code',
               code_verifier: verifier,
@@ -144,6 +146,11 @@ export async function restoreSession() {
 
 // ===== 自動更新 token =====
 async function _refreshIdToken(refreshToken) {
+  if (refreshToken === '__qa_mock_token__') {
+    _idToken     = 'qa-mock-token-do-not-use-in-prod';
+    _tokenExpiry = Date.now() + 3600000;
+    return _idToken;
+  }
   const res = await fetch(
     `https://securetoken.googleapis.com/v1/token?key=${FIREBASE_CONFIG.apiKey}`,
     {
@@ -188,6 +195,16 @@ export function getCurrentUser() {
 export function getIdToken() {
   return _idToken;
 }
+
+// ===== QA 後門（本地測試用，不進 git）=====
+export function __qaSetAuth(user) {
+  _userInfo    = user;
+  _uid         = user.uid;
+  _idToken     = 'qa-mock-token-do-not-use-in-prod';
+  _tokenExpiry = Date.now() + 3600000;
+}
+// 掛到 service worker global，讓 Playwright worker.evaluate() 可以呼叫
+self.__qaSetAuth = __qaSetAuth;
 
 // ===== Firestore helpers =====
 const FIRESTORE_BASE =

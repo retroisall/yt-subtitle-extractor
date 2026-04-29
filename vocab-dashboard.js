@@ -920,3 +920,22 @@ function bindEvents() {
 
   loadTab(activeTab);
 })();
+
+// ── QA 後門（本地測試用，不進 git）──────────────────────────────────────
+// 直接操作模組閉包，繞開 service worker message passing
+window.__qaSetUser = (user) => {
+  _userInfo = user;
+  _uid      = user?.uid || null;
+  _idToken  = 'qa-mock-token-do-not-use-in-prod';
+  setAuthUI(user);
+  // 覆寫登出按鈕為 QA 版本（避免 handleSignOut 的 async sendMsg 在 Playwright 失敗）
+  const btn = $('vd-auth-btn');
+  if (btn) btn.onclick = () => window.__qaSignOut();
+};
+window.__qaSignOut = () => {
+  _userInfo = null;
+  _uid      = null;
+  _idToken  = null;
+  setAuthUI(null);
+  chrome.storage.local.remove(['firebaseUser', 'firebaseRefreshToken']).catch(() => {});
+};

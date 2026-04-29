@@ -775,7 +775,8 @@
       saveSettings();
       updateTransProviderUI();
       secondarySubtitles = [];
-      autoLoadSubtitles(trackList);
+      // 主字幕已在記憶體，不重抓（避免整個字幕列表閃爍）
+      autoLoadSubtitles(trackList, null, primarySubtitles.length > 0);
     });
 
     const batchModeSel = document.getElementById('yt-sub-batch-mode');
@@ -1241,7 +1242,11 @@
     const wrapper = document.getElementById('yt-sub-wrapper');
     if (!wrapper) return;
     const player = document.querySelector('#movie_player') || document.querySelector('ytd-player');
-    if (!player) return;
+    if (!player) {
+      // 播放器還未掛上 DOM，稍後再試
+      setTimeout(() => syncWrapperToPlayer(), 300);
+      return;
+    }
 
     // 第一次找到 player 時掛上 ResizeObserver
     // window resize 只在視窗縮放時觸發，無法捕捉 player 非同步渲染完成
@@ -1511,6 +1516,10 @@
           status.className = 'yt-sub-status error';
           container.innerHTML = '';
           collapseSidebar('no-sub');
+          // 無字幕時 expandSidebar 不會被呼叫，但播放器可能還未渲染完
+          // 用延遲 retry 確保球的位置正確
+          setTimeout(() => syncWrapperToPlayer(), 300);
+          setTimeout(() => syncWrapperToPlayer(), 1000);
         });
       }
       return;
@@ -1748,13 +1757,13 @@
 
   // ===== 自動載入主、副字幕 =====
   // primaryOverride：ASR 同語系 fallback（不翻譯），不修改 settings
-  function autoLoadSubtitles(tracks, primaryOverride = null) {
+  function autoLoadSubtitles(tracks, primaryOverride = null, skipPrimary = false) {
     if (!tracks.length) return;
     // 只接受偏好語言的原生 track 或同語系 ASR，不走翻譯/tlang
     const primary = primaryOverride || findPrimaryTrack(tracks);
-    if (primary) {
+    if (primary && !skipPrimary) {
       loadSubtitle(primary, 'primary');
-    } else {
+    } else if (!primary && !skipPrimary) {
       // 此影片無偏好語言字幕，停止，不強制翻譯
       const statusEl = document.getElementById('yt-sub-status');
       if (statusEl) {

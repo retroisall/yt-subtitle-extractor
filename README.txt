@@ -14,20 +14,24 @@ Chrome Store 上架進度（2026-04-29）
       URL：https://retroisall.github.io/youtube-learning-bar-privacy/
   [x] 隱私政策草稿：notes/privacy-policy-draft.md
 
-待辦（明天繼續）：
-  [ ] Chrome Developer 帳號付費 $5（昨天金流異常 OR_FGPMH_11，明天重試）
-  [ ] 上傳 yt-subtitle-store.zip 到 Chrome Web Store
+已完成（2026-04-29 補齊）：
+  [x] Firebase Console 建立文件：app_config/admin_config
+      欄位：admin_emails: ["kuoway79@gmail.com"]
+  [x] 部署 Firestore 規則：firebase deploy --only firestore:rules
+  [x] 打包腳本改為自動帶版本號（yt-subtitle-store-v5.3.zip）
+  [x] OAuth PKCE token exchange 補 client_secret（修正「client_secret is missing」）
+  [x] 切換翻譯服務時字幕閃爍修正（skipPrimary flag）
+  [x] 懸浮球初次載入位置錯誤修正（無字幕影片 syncWrapperToPlayer 重試）
+  [x] vocab-dashboard QA 自動化（tests/qa_vocab_dashboard.mjs，T1-T10 全過）
+
+待辦：
+  [ ] 上傳 yt-subtitle-store-v5.3.zip 到 Chrome Web Store
   [ ] Store 填寫：簡短說明 / 詳細說明 / 截圖 / 隱私政策 URL
   [ ] 等待 Google 審查（首次約 1-7 天）
-
-待辦（上架後）：
-  [ ] Firebase Console 建立文件：app_config/admin_config
-      欄位：admin_emails: ["kuoway79@gmail.com"]
-  [ ] 部署 Firestore 規則：firebase deploy --only firestore:rules
   [ ] 圖示請美術重新設計（目前為暫時佔位符 LB 圖示）
 
 上架用檔案位置：
-  ZIP 包：yt-subtitle-store.zip（148KB，可直接上傳）
+  ZIP 包：yt-subtitle-store-v5.3.zip（156KB，可直接上傳）
   截圖：store-screenshots\（5 張 1280x800 PNG）
   隱私政策：https://retroisall.github.io/youtube-learning-bar-privacy/
 
@@ -685,10 +689,29 @@ v5.3 更新紀錄（2026-04-29）
     - _applyTierGates() 移除社群字幕的 disabled 強制設定
   - 社群字幕讀取現對 guest、editor 皆開放；寫入（分享）仍需登入
 
+■ OAuth PKCE 登入失敗（client_secret is missing）
+  - Web application 類型 OAuth client 在 code exchange 時需傳 client_secret
+  - firebase.js token exchange body 補上 CLIENT_SECRET 常數
+
+■ 切換翻譯服務時字幕整體閃爍
+  - 原因：切換 provider 時重新呼叫 autoLoadSubtitles，導致已載入的主字幕被清空重抓
+  - 修正：新增 skipPrimary flag，provider 切換時只重載副字幕，主字幕不重複請求
+
+■ 懸浮球初次載入位置錯誤（無字幕影片）
+  - 原因：collapseSidebar('no-sub') 時 #movie_player 尚未渲染，syncWrapperToPlayer 失效
+  - 修正：補加 300ms / 1000ms 兩次重試；syncWrapperToPlayer 偵測到 player 不存在時自動重試
+
 【架構調整】
 
 ■ 三階層權限簡化為兩階層
   - 移除中間 'user' 層（需申請）
   - 現為：guest（未登入）/ editor（已登入，自動授予）
   - 舊的 user 層 UI 提示一併清除
+
+【QA 自動化】
+
+■ vocab-dashboard Playwright 自動化（T1-T10）
+  - 新增 tests/qa_vocab_dashboard.mjs
+  - T5 改用 window.__qaSetUser 直接注入 mock user，繞過 MV3 SW async 限制
+  - 執行：node tests/qa_vocab_dashboard.mjs
 

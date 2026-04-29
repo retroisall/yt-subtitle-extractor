@@ -5,7 +5,8 @@
 set -e
 
 DIST_DIR="dist-store"
-ZIP_NAME="yt-subtitle-store.zip"
+VERSION=$(node -e "const m=require('./manifest.json');console.log(m.version)")
+ZIP_NAME="yt-subtitle-store-v${VERSION}.zip"
 
 echo "=== Chrome Store 打包腳本 ==="
 echo ""

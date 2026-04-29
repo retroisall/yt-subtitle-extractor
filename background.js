@@ -4,6 +4,7 @@
 import {
   signInWithGoogle, signOut, restoreSession, getCurrentUser, getIdToken,
   setDoc, getDoc, updateDoc, getCollection, getCollectionPublic, deleteDoc,
+  __qaSetAuth,
 } from './firebase.js';
 
 // 啟動時嘗試恢復登入狀態（Promise 存起來供 handler 等待，解決 SW 重啟 race condition）
@@ -188,6 +189,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       chrome.tabs.create({ url });
       sendResponse({ ok: true });
       return false;
+    }
+
+    // QA 後門：直接設定假登入狀態（本地測試用，不進 git）
+    // storage 由測試端寫好，這裡只更新 in-memory 狀態，同步回應
+    case '__qa_bypass_auth': {
+      const mockUser = msg.user || { uid: 'qa-uid', email: 'qa@test.com', displayName: 'QA Bot', photoUrl: '' };
+      __qaSetAuth(mockUser);
+      sendResponse({ ok: true, user: mockUser });
+      return false; // 同步完成，不等 callback
     }
 
     // 開啟單字庫儀表板
