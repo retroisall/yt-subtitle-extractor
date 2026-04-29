@@ -134,6 +134,34 @@ window.fetch = async function(url, options) {
 
 ---
 
+## 須注意事項
+
+### OAuth REDIRECT_URI 不可硬編碼 extension ID
+
+**問題：** 開發版與 Chrome Store 版的 extension ID 不同。若 `REDIRECT_URI` 硬寫開發版 ID，Store 版登入會出現 `redirect_uri_mismatch` 或「Authorization page could not be loaded」。
+
+**根本原因：**
+- 開發版 ID：由本機資料夾路徑產生，固定但只在開發環境有效
+- Store 版 ID：由 Chrome Web Store 分配，發布後才確定
+
+**正確做法：** `firebase.js` 使用 `chrome.identity.getRedirectURL()` 動態取得，自動對應當前 extension ID。
+
+```js
+// ❌ 錯誤：硬寫開發版 ID
+const REDIRECT_URI = 'https://lamalndoljdlfflndfiladcehcnipchg.chromiumapp.org/';
+
+// ✅ 正確：動態取得
+const REDIRECT_URI = chrome.identity.getRedirectURL();
+```
+
+**Google Cloud Console 設定：** OAuth 用戶端需加入開發版與 Store 版兩個 URI：
+```
+https://lamalndoljdlfflndfiladcehcnipchg.chromiumapp.org/
+https://imcniikicdlcphijhaglfajpfllflfpe.chromiumapp.org/
+```
+
+---
+
 ## 安全性檢查紀錄
 
 ### 2026-04-28 — Git 敏感資訊掃描
