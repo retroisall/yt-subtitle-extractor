@@ -1,11 +1,11 @@
 YouTube Learning Bar - YouTube 沉浸式語言學習工具
 ==================================================
 
-Chrome Store 上架進度（2026-04-28）
+Chrome Store 上架進度（2026-04-29）
 ------------------------------------
 
 已完成：
-  [x] manifest.json 更新（名稱 / 版本 5.2 / 描述 / icons / homepage_url）
+  [x] manifest.json 更新（名稱 / 版本 5.3 / 描述 / icons / homepage_url）
   [x] icons/ 目錄建立（16px / 48px / 128px）
   [x] 打包腳本 package.sh（輸出 yt-subtitle-store.zip，148KB）
   [x] Admin email 移出公開包（改從 Firestore app_config/admin_config 讀取）
@@ -657,4 +657,38 @@ v5.2 更新紀錄（2026-04-25）
   - 複製成功後圖示短暫切換為勾選符號（1.5 秒後復原），提供明確回饋
   - hover-pause 凍結狀態下複製的是凍結句，而非下一句
   - 點擊不影響單句循環（已阻止事件冒泡）
+
+
+
+---
+
+v5.3 更新紀錄（2026-04-29）
+============================
+
+【修正】
+
+■ 登入使用者無法使用社群字幕與編輯字幕（權限競態 Bug）
+  - 症狀：已登入用戶進入頁面後，社群字幕選項仍顯示「🔒」或 disabled，
+    編輯模式也無法進入
+  - 根本原因：_registerAndCheckEditorPermission() 會非同步查詢 Firestore，
+    若查無明確的 editor 記錄則回寫 _editorEnabled = false，
+    覆蓋掉 _refreshUserTier() 剛設好的 _editorEnabled = true
+  - 修正：移除所有 _registerAndCheckEditorPermission() 呼叫點（共 3 處），
+    登入即自動取得 editor 權限，不再查詢 Firestore 審核記錄
+
+■ 社群字幕對未登入用戶不開放（錯誤的權限門檻）
+  - 症狀：未登入時社群字幕選項鎖定，點擊後顯示「需登入」或「需申請」提示
+  - 修正：
+    - fetchCommunitySubtitles() 移除 editor 層級檢查，所有用戶皆可讀取
+    - showCommunitySubtitlePicker() 移除登入/申請攔截邏輯
+    - 自動還原社群字幕（auto-restore）移除 editor 層級檢查
+    - _applyTierGates() 移除社群字幕的 disabled 強制設定
+  - 社群字幕讀取現對 guest、editor 皆開放；寫入（分享）仍需登入
+
+【架構調整】
+
+■ 三階層權限簡化為兩階層
+  - 移除中間 'user' 層（需申請）
+  - 現為：guest（未登入）/ editor（已登入，自動授予）
+  - 舊的 user 層 UI 提示一併清除
 
