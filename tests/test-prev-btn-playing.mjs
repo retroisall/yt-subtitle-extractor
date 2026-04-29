@@ -43,7 +43,7 @@ function generateFakeSubs(count) {
 
 /**
  * 等待 extension isolated world context 出現
- * content.js 名稱為 "YT Subtitle Demo"
+ * content.js 名稱為 "YouTube Learning Bar (DEV)"
  */
 function waitForExtContext(client, timeout) {
   return new Promise((resolve, reject) => {
@@ -52,7 +52,7 @@ function waitForExtContext(client, timeout) {
       timeout
     );
     client.on('Runtime.executionContextCreated', (event) => {
-      if (event.context.name === 'YT Subtitle Demo') {
+      if (event.context.name === 'YouTube Learning Bar (DEV)') {
         clearTimeout(timer);
         resolve(event.context.id);
       }

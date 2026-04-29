@@ -7,7 +7,7 @@
  *
  * 測試流程：
  * 1. 導航到 YouTube 影片頁
- * 2. 取得 extension isolated world（name="YT Subtitle Demo"）context ID
+ * 2. 取得 extension isolated world（name="YouTube Learning Bar (DEV)"）context ID
  * 3. 寫入 editedSubtitles_<videoId> 到 chrome.storage.local
  * 4. 立即讀回驗證
  * 5. 重新整理頁面
@@ -43,13 +43,13 @@ function report(label, passed, detail) {
 }
 
 /**
- * 等待 extension isolated world context 出現（content.js 名稱為 "YT Subtitle Demo"）
+ * 等待 extension isolated world context 出現（content.js 名稱為 "YouTube Learning Bar (DEV)"）
  */
 function waitForExtContext(client, timeout) {
   return new Promise(function(resolve) {
     var timer = setTimeout(function() { resolve(null); }, timeout);
     client.on('Runtime.executionContextCreated', function(event) {
-      if (event.context.name === 'YT Subtitle Demo') {
+      if (event.context.name === 'YouTube Learning Bar (DEV)') {
         clearTimeout(timer);
         resolve(event.context.id);
       }

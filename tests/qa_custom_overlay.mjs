@@ -4,7 +4,7 @@
  *
  * 測試流程：
  * 1. 導航到 YouTube 影片頁 (dQw4w9WgXcQ)
- * 2. 等待 extension isolated world context（名稱 "YT Subtitle Demo"）
+ * 2. 等待 extension isolated world context（名稱 "YouTube Learning Bar (DEV)"）
  * 3. 用 CDP 寫入假自定義字幕到 editedSubtitles_dQw4w9WgXcQ
  * 4. 重新整理，等待字幕還原（最多 10 秒，輪詢確認 sidebar 顯示「已還原」）
  * 5. 驗證 #yt-sub-overlay 存在於 DOM
@@ -51,7 +51,7 @@ function waitForExtContext(client, timeout) {
   return new Promise(function(resolve) {
     const timer = setTimeout(function() { resolve(null); }, timeout);
     client.on('Runtime.executionContextCreated', function(event) {
-      if (event.context.name === 'YT Subtitle Demo') {
+      if (event.context.name === 'YouTube Learning Bar (DEV)') {
         clearTimeout(timer);
         resolve(event.context.id);
       }

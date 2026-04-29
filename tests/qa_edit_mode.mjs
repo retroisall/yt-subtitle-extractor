@@ -80,7 +80,7 @@ function waitForExtContext(client, timeout) {
   return new Promise(resolve => {
     const timer = setTimeout(() => resolve(null), timeout);
     client.on('Runtime.executionContextCreated', event => {
-      if (event.context.name === 'YT Subtitle Demo') {
+      if (event.context.name === 'YouTube Learning Bar (DEV)') {
         clearTimeout(timer);
         resolve(event.context.id);
       }
@@ -238,7 +238,7 @@ async function runTests() {
     // 使用可變狀態追蹤最新 ctxId（跨多次 reload）
     const state = { ctxId: ctxId1 };
     client.on('Runtime.executionContextCreated', event => {
-      if (event.context.name === 'YT Subtitle Demo') {
+      if (event.context.name === 'YouTube Learning Bar (DEV)') {
         state.ctxId = event.context.id;
         log('Extension context 更新: ' + state.ctxId);
       }

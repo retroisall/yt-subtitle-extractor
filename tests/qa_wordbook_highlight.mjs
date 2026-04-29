@@ -5,7 +5,7 @@
  * 測試流程：
  * 1. 啟動 Playwright + Chrome 擴充套件（headless: false）
  * 2. 導航到 YouTube 影片（Gangnam Style，有英文字幕）
- * 3. 等待 extension isolated world context（名稱 "YT Subtitle Demo"）
+ * 3. 等待 extension isolated world context（名稱 "YouTube Learning Bar (DEV)"）
  * 4. 等待側邊欄載入（#yt-sub-demo-sidebar 出現）
  * 5. 用 CDP chrome.storage.local.set 預先寫入已知單字 "style" 到生字本
  * 6. 重新整理頁面，等待 extension context 重建
@@ -77,7 +77,7 @@ function waitForExtContext(client, timeout) {
       resolve(null);
     }, timeout);
     client.on('Runtime.executionContextCreated', function (event) {
-      if (event.context.name === 'YT Subtitle Demo') {
+      if (event.context.name === 'YouTube Learning Bar (DEV)') {
         clearTimeout(timer);
         resolve(event.context.id);
       }
