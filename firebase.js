@@ -15,13 +15,34 @@ let _uid         = null;
 let _userInfo    = null;
 let _tokenExpiry = 0;
 
-// ===== Google 登入（launchWebAuthFlow，不需要上架）=====
+// ===== PKCE 工具函數 =====
+function _generateCodeVerifier() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function _generateCodeChallenge(verifier) {
+  const data   = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+// ===== Google 登入（launchWebAuthFlow + PKCE）=====
 export async function signInWithGoogle() {
-  const url    = new URL('https://accounts.google.com/o/oauth2/auth');
-  url.searchParams.set('client_id',    CLIENT_ID);
-  url.searchParams.set('redirect_uri', REDIRECT_URI);
-  url.searchParams.set('response_type','token');
-  url.searchParams.set('scope',        'openid email profile');
+  const verifier   = _generateCodeVerifier();
+  const challenge  = await _generateCodeChallenge(verifier);
+  const redirectUri = chrome.identity.getRedirectURL();
+
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.searchParams.set('client_id',            CLIENT_ID);
+  url.searchParams.set('redirect_uri',         redirectUri);
+  url.searchParams.set('response_type',        'code');
+  url.searchParams.set('scope',                'openid email profile');
+  url.searchParams.set('code_challenge',       challenge);
+  url.searchParams.set('code_challenge_method','S256');
 
   return new Promise((resolve, reject) => {
     chrome.identity.launchWebAuthFlow(
@@ -31,13 +52,27 @@ export async function signInWithGoogle() {
           reject(new Error(chrome.runtime.lastError?.message || '登入取消'));
           return;
         }
-        // 從 redirect hash 取 access_token
-        const hash        = new URL(redirectUrl).hash.substring(1);
-        const params      = new URLSearchParams(hash);
-        const accessToken = params.get('access_token');
-        if (!accessToken) { reject(new Error('未取得 access_token')); return; }
+        // 從 redirect query 取 code
+        const code = new URL(redirectUrl).searchParams.get('code');
+        if (!code) { reject(new Error('未取得 authorization code')); return; }
 
         try {
+          // 用 code + verifier 換 access_token
+          const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              code,
+              client_id:     CLIENT_ID,
+              redirect_uri:  redirectUri,
+              grant_type:    'authorization_code',
+              code_verifier: verifier,
+            }),
+          });
+          const tokenData = await tokenRes.json();
+          if (tokenData.error) throw new Error(tokenData.error_description || tokenData.error);
+          const accessToken = tokenData.access_token;
+
           // 用 Google access_token 換 Firebase ID token
           const res = await fetch(
             `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FIREBASE_CONFIG.apiKey}`,
@@ -46,7 +81,7 @@ export async function signInWithGoogle() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 postBody:            `access_token=${accessToken}&providerId=google.com`,
-                requestUri:          REDIRECT_URI,
+                requestUri:          redirectUri,
                 returnIdpCredential: true,
                 returnSecureToken:   true,
               }),

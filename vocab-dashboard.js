@@ -897,8 +897,6 @@ function bindEvents() {
   $('cfg-save-btn')?.addEventListener('click', saveSettings);
   $('settings-signout-btn')?.addEventListener('click', handleSignOut);
 
-  // 登入按鈕（初始）
-  $('vd-auth-btn').addEventListener('click', handleSignIn);
 }
 
 // ===== 初始化 =====
