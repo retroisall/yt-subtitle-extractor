@@ -7,7 +7,7 @@ const FIREBASE_CONFIG = {
 };
 
 const CLIENT_ID   = '778663949144-hc65i88kr5mr1h5ap9npmcoh6gq6t0c7.apps.googleusercontent.com';
-const REDIRECT_URI = `https://lamalndoljdlfflndfiladcehcnipchg.chromiumapp.org/`;
+const REDIRECT_URI = chrome.identity.getRedirectURL();
 
 // ===== 認證狀態 =====
 let _idToken     = null;
