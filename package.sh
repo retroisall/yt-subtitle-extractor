@@ -51,6 +51,11 @@ for f in "${EXTENSION_FILES[@]}"; do
 done
 
 echo ""
+echo "修正正式版 manifest（移除 DEV 標記）..."
+# 把 dist-store/manifest.json 的 name 中的 " (DEV)" 移除
+sed -i 's/ (DEV)//g' "$DIST_DIR/manifest.json"
+grep '"name"' "$DIST_DIR/manifest.json"
+
 echo "打包成 ZIP..."
 # Windows 用 PowerShell，Unix/Mac 用 zip
 if command -v zip &> /dev/null; then
