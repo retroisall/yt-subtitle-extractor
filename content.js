@@ -2346,7 +2346,9 @@
     document.querySelectorAll('.yt-sub-word').forEach(span => {
       const token = span.dataset.token || '';
       const lemma = lemmatize(token.toLowerCase().replace(/'s$/i, '').replace(/['-]$/, ''));
-      const inBook = _savedWordSet.has(lemma) || _savedWordSet.has(token.toLowerCase());
+      const tokenLower = token.toLowerCase();
+      const inBook = (_savedWordSet.has(lemma) || _savedWordSet.has(tokenLower)) &&
+                     !_learnedWordSet.has(lemma) && !_learnedWordSet.has(tokenLower);
       span.classList.toggle('yt-sub-word--saved', inBook);
     });
   }
@@ -3002,7 +3004,9 @@
         span.className = 'yt-sub-word';
         span.textContent = token;
         const _lemma = lemmatize(token.toLowerCase().replace(/'s$/i, '').replace(/['-]$/, ''));
-        if (_savedWordSet.has(_lemma) || _savedWordSet.has(token.toLowerCase())) {
+        const _tokenLower = token.toLowerCase();
+        if ((_savedWordSet.has(_lemma) || _savedWordSet.has(_tokenLower)) &&
+            !_learnedWordSet.has(_lemma) && !_learnedWordSet.has(_tokenLower)) {
           span.classList.add('yt-sub-word--saved');
         }
         // 儲存 token 於 dataset，讓 container 層的右鍵 delegation 取得
