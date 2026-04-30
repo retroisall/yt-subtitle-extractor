@@ -2187,6 +2187,7 @@
       chrome.storage.local.set({ [SAVED_WORDS_KEY]: saved }, () => {
         if (nowLearned) _learnedWordSet.add(w);
         else _learnedWordSet.delete(w);
+        patchSavedWordHighlights();
         btn.textContent = nowLearned ? '✓ 已學會' : '已學會';
         btn.classList.toggle('active', nowLearned);
         // 若生字本面板開著，同步重繪對應的 row
@@ -2710,6 +2711,7 @@
         // 同步更新記憶體 Set
         if (nowLearned) _learnedWordSet.add(word);
         else _learnedWordSet.delete(word);
+        patchSavedWordHighlights();
         // 同步更新 popup 內的已學會按鈕（若 popup 仍開著）
         const openPopup = document.getElementById('yt-sub-word-popup');
         if (openPopup?.style.display !== 'none' && openPopup?.dataset.word === word) {
