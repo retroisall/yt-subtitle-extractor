@@ -994,3 +994,91 @@ function syncWrapperToPlayer() {
 
 300ms 重試通常足夠；1000ms 作為保底，確保慢速機器也能對齊。
 
+
+---
+
+## CLIENT_SECRET 安全處理（secret.config.js 策略）
+
+### 問題
+
+`firebase.js` 在 OAuth PKCE code exchange 時需傳 `client_secret`，原本直接寫死在程式碼裡並 commit 進 git。Public repo 任何人都能看到。
+
+### 修正方案
+
+1. 建立 `secret.config.js`，只存 `CLIENT_SECRET`
+2. 加入 `.gitignore`（不進 git、不進 CWS 審查包）
+3. `firebase.js` 改為 `import { CLIENT_SECRET } from './secret.config.js'`
+4. `package.sh` 的 `EXTENSION_FILES` 加入 `secret.config.js`（打包 ZIP 時需要）
+
+```js
+// secret.config.js — 不進 git
+export const CLIENT_SECRET = 'GOCSPX-...';
+```
+
+### 歷史清除
+
+舊 secret 已 commit 進 git，需用 `git filter-repo` 清除：
+
+```bash
+# 建立替換規則
+echo 'literal:GOCSPX-OLD==REMOVED' > /tmp/replace.txt
+
+# 重寫所有 commit（清除舊 secret）
+git filter-repo --replace-text /tmp/replace.txt
+
+# 重新加回 remote（filter-repo 會移除）
+git remote add origin https://github.com/retroisall/yt-subtitle-extractor.git
+
+# Force push（必要，歷史已改寫）
+git push --force origin master
+```
+
+**注意**：`git filter-repo` 執行前未 commit 的修改會遺失（工作目錄會 reset 到 HEAD）。執行前先 commit 或備份未存檔的更動。
+
+---
+
+## 已學習單字不高亮（_learnedWordSet 排除邏輯）
+
+### 需求
+
+生字本中標記為「已學會」（`status === 'learned'`）的單字，不應在字幕中套用紫色高亮（`.yt-sub-word--saved`），避免干擾閱讀流程。
+
+### 實作
+
+`_learnedWordSet`（Set）在 `refreshSavedWordSet()` 中從 storage 建立：
+
+```js
+_learnedWordSet = new Set(
+  active.filter(w => w.status === 'learned').map(w => w.word)
+);
+```
+
+兩處高亮邏輯皆加入排除條件：
+
+**`buildTokenizedText()`（新 span 建立時）：**
+```js
+if ((_savedWordSet.has(_lemma) || _savedWordSet.has(_tokenLower)) &&
+    !_learnedWordSet.has(_lemma) && !_learnedWordSet.has(_tokenLower)) {
+  span.classList.add('yt-sub-word--saved');
+}
+```
+
+**`patchSavedWordHighlights()`（批次 DOM 更新）：**
+```js
+const inBook = (_savedWordSet.has(lemma) || _savedWordSet.has(tokenLower)) &&
+               !_learnedWordSet.has(lemma) && !_learnedWordSet.has(tokenLower);
+span.classList.toggle('yt-sub-word--saved', inBook);
+```
+
+### 踩坑：標記已學習後高亮不即時消失
+
+`toggleLearnedStatus()` 更新 `_learnedWordSet` 後，原本**沒有**呼叫 `patchSavedWordHighlights()`，導致現有 span 的 class 不會即時更新（只有 reload 後才生效）。
+
+`deleteWord()` 有這行，`toggleLearnedStatus()` 兩個 callback 都漏掉了。
+
+修正：在兩個 `toggleLearnedStatus` 的 `storage.set` callback 中補上：
+```js
+if (nowLearned) _learnedWordSet.add(word);
+else _learnedWordSet.delete(word);
+patchSavedWordHighlights();  // ← 補這行
+```

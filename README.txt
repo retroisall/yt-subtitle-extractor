@@ -1,8 +1,8 @@
 YouTube Learning Bar - YouTube 沉浸式語言學習工具
 ==================================================
 
-Chrome Store 上架進度（2026-04-29）
-------------------------------------
+Chrome Store 上架進度（2026-04-30 更新）
+------------------------------------------
 
 已完成：
   [x] manifest.json 更新（名稱 / 版本 5.3 / 描述 / icons / homepage_url）
@@ -23,6 +23,13 @@ Chrome Store 上架進度（2026-04-29）
   [x] 切換翻譯服務時字幕閃爍修正（skipPrimary flag）
   [x] 懸浮球初次載入位置錯誤修正（無字幕影片 syncWrapperToPlayer 重試）
   [x] vocab-dashboard QA 自動化（tests/qa_vocab_dashboard.mjs，T1-T10 全過）
+
+已完成（2026-04-30 補齊）：
+  [x] CLIENT_SECRET 移至 secret.config.js（gitignore，不進 git 歷史）
+  [x] 舊 secret 從 git 歷史完整清除（git filter-repo）
+  [x] 生字本「已學習」單字不再高亮顯示（buildTokenizedText + patchSavedWordHighlights）
+  [x] 標記已學習後字幕高亮即時消失（toggleLearnedStatus 補呼叫 patchSavedWordHighlights）
+  [x] QA 回歸測試：tests/qa_wordbook_learned_nohighlight.mjs（11/11 通過）
 
 待辦：
   [ ] 上傳 yt-subtitle-store-v5.3.zip 到 Chrome Web Store
@@ -714,4 +721,39 @@ v5.3 更新紀錄（2026-04-29）
   - 新增 tests/qa_vocab_dashboard.mjs
   - T5 改用 window.__qaSetUser 直接注入 mock user，繞過 MV3 SW async 限制
   - 執行：node tests/qa_vocab_dashboard.mjs
+
+---
+
+v5.3.1 更新紀錄（2026-04-30）
+==============================
+
+【安全修正】
+
+■ OAuth CLIENT_SECRET 移出 git 歷史
+  - 問題：CLIENT_SECRET 明文寫在 firebase.js 並已 commit 進 git，public repo 可見
+  - 舊 secret GOCSPX-OI2G... 已在 GCP 撤銷
+  - 修正：新建 secret.config.js（已加入 .gitignore），firebase.js 改為 import
+  - 使用 git filter-repo --replace-text 清除所有 37 個歷史 commit 中的舊 secret
+  - force push 更新 remote，公開 repo 歷史已乾淨
+
+【功能修正】
+
+■ 已學習單字不再在字幕中高亮顯示
+  - 需求：生字本中標記為「已學會」的單字，字幕不再套用紫色高亮
+  - 修正：buildTokenizedText() 與 patchSavedWordHighlights() 加入 _learnedWordSet 排除條件
+  - _learnedWordSet：從 storage 中 status === 'learned' 的單字建立的 Set
+
+■ 標記已學習後字幕高亮未即時消失
+  - 問題：在頁面上點擊「標記為已學會」後，字幕中的高亮不會立即消失（需 reload）
+  - 根本原因：toggleLearnedStatus() 更新 _learnedWordSet 後未呼叫 patchSavedWordHighlights()
+    （deleteWord() 有呼叫，但兩個 toggleLearnedStatus callback 都遺漏）
+  - 修正：兩處 toggleLearnedStatus storage callback 皆補上 patchSavedWordHighlights()
+
+【QA 自動化】
+
+■ 已學習單字不高亮回歸測試
+  - 新增 tests/qa_wordbook_learned_nohighlight.mjs
+  - 三場景：無 status 應高亮 / status='learned' 不高亮 / 移除 status 後恢復
+  - 使用 editedSubtitles 本地字幕策略，繞過 YouTube pot token 限制
+  - 執行：node tests/qa_wordbook_learned_nohighlight.mjs（11/11 全過）
 
