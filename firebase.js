@@ -1,13 +1,13 @@
 // firebase.js — Firebase REST API 封裝（MV3 service worker 用）
 // 認證改用 launchWebAuthFlow（不需要上架 Web Store）
+import { CLIENT_SECRET } from './secret.config.js';
 
 const FIREBASE_CONFIG = {
   apiKey:    'AIzaSyBbuou26FoYbXt1OpMJVLy3m9zz6VDfAM8',
   projectId: 'yt-vocab-learner',
 };
 
-const CLIENT_ID     = '778663949144-hc65i88kr5mr1h5ap9npmcoh6gq6t0c7.apps.googleusercontent.com';
-const CLIENT_SECRET = 'REDACTED_CLIENT_SECRET';
+const CLIENT_ID = '778663949144-hc65i88kr5mr1h5ap9npmcoh6gq6t0c7.apps.googleusercontent.com';
 const REDIRECT_URI  = chrome.identity.getRedirectURL();
 
 // ===== 認證狀態 =====

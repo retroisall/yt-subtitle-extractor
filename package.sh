@@ -24,6 +24,7 @@ EXTENSION_FILES=(
   "styles.css"
   "background.js"
   "firebase.js"
+  "secret.config.js"
   "editor.html"
   "editor.js"
   "editor.css"
