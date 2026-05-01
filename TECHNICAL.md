@@ -1082,3 +1082,98 @@ if (nowLearned) _learnedWordSet.add(word);
 else _learnedWordSet.delete(word);
 patchSavedWordHighlights();  // ← 補這行
 ```
+
+---
+
+## Bug：直播聊天室重播 panel 隱藏後影片縮小 + 黑色遮罩（2026-05-01）
+
+### 問題描述
+
+在直播紀錄影片（如 `Pi7Pq-EcK5w`）展開側邊欄後：
+1. `#primary`（影片欄）從 1249px 縮到 545px，右側出現大片空白
+2. 即使修正到 889px，影片右側仍有一塊黑色遮罩覆蓋
+
+### 根本原因（兩層）
+
+#### 第一層：`#columns` 的 `padding-right`
+
+YouTube 在 `ytd-watch-flexy[fixed-panels]` 模式下注入：
+
+```css
+ytd-watch-flexy[fixed-panels] #columns.ytd-watch-flexy {
+  padding-right: var(--ytd-watch-flexy-sidebar-width); /* 343.75px */
+}
+```
+
+`#columns` 是 flex container（905px），`padding-right: 343.75px` 讓 flex children 可用空間只剩 561px。
+`#primary` 的 `flex-grow: 1` 只能填滿 561px，加上自身 margin/padding 16px = 545px。
+
+這個規則觸發條件是 `fixed-panels` 屬性（YouTube 的 engagement panel 固定在右側模式），
+即使我們隱藏了 `#chat-container`，YouTube JS 仍維持這個屬性。
+
+#### 第二層：`#panels-full-bleed-container` 視覺遮罩
+
+```css
+ytd-watch-flexy[fixed-panels] #panels-full-bleed-container.ytd-watch-flexy {
+  width: var(--ytd-watch-flexy-sidebar-width); /* 343.75px */
+}
+/* 注意：fixed-panels 模式下此元素 *不會* display:none */
+ytd-watch-flexy:not([panels-beside-player]):not([fixed-panels]):not([squeezeback])
+  #panels-full-bleed-container { display: none; }
+```
+
+`#panels-full-bleed-container` 是 343.75px 寬的黑色容器，疊在 `#primary` 右側。
+修正了 `padding-right` 讓 `#primary` 擴展到 889px 後，這個容器仍然可見並遮蓋影片右側。
+
+### 排查過程（排除的錯誤方向）
+
+| 嘗試 | 結果 | 原因 |
+|------|------|------|
+| 移除 `chat_` 屬性 | 無效 | 此影片原本就沒有 `chat_` |
+| 移除 `live-chat-present-and-expanded` | 無效 | 不是寬度的控制來源 |
+| CSS `#primary { flex: 1 !important; max-width: 100% !important }` | 無效 | `max-width: 100%` 在 flex 中解析為 561px（受 padding-right 影響），非 905px |
+| inline style `#primary { width: 905px !important }` | 無效 | flex-basis 為 0%，width 被 flex 算法忽略；另外 YouTube JS 持續覆寫 |
+| MutationObserver 監聽 style 屬性並 re-apply | 無效 | YouTube 不是透過 inline style 設定，而是透過 CSS 規則計算 |
+| 移除 `is-single-column` 屬性 | 無效 | 不影響寬度 |
+| 設 `max-width: none !important` | 無效 | 根本不是 max-width 在約束 |
+
+關鍵診斷指令：逐一移除 `ytd-watch-flexy` 的各屬性觀察寬度變化：
+- 移除 `fixed-panels` → `#primary` 從 545px 變 889px ✅
+- 移除 `theater` → 同樣 889px（`theater` 觸發了 `fixed-panels` 的生效條件）
+- 其他屬性移除 → 無變化
+
+### 修正方案（content.js）
+
+**`expandSidebar()`**：隱藏 chat panel 同時：
+```js
+// 移除 #columns 的 padding-right，讓 #primary 可填滿 flex container
+document.querySelector('#columns')?.style.setProperty('padding-right', '0', 'important');
+// 隱藏黑色遮罩容器
+document.querySelector('#panels-full-bleed-container')?.style.setProperty('display', 'none', 'important');
+```
+
+**`collapseSidebar()`**：還原：
+```js
+document.querySelector('#columns')?.style.removeProperty('padding-right');
+document.querySelector('#panels-full-bleed-container')?.style.removeProperty('display');
+```
+
+### QA 教訓
+
+**只量 `getBoundingClientRect().width` 不夠**。
+
+`#primary` 寬度 889px 是正確的，但 `#panels-full-bleed-container`（另一個元素）
+疊在上方造成黑色遮罩，寬度量測完全無法偵測到。
+
+必須額外驗證可能造成視覺遮蓋的元素是否被隱藏：
+
+```js
+const panelsDisplay = await page.evaluate(() => {
+  const el = document.querySelector('#panels-full-bleed-container');
+  if (!el) return 'not-found';
+  return el.style.display || window.getComputedStyle(el).display;
+});
+assert(panelsDisplay === 'none' || panelsDisplay === 'not-found');
+```
+
+已補入 `tests/qa_live_chat_panel.mjs` 第 6d 項斷言，並記錄在 `docs/QA_READ.md`。

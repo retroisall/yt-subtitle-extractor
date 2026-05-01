@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Learning Bar (DEV)",
-  "version": "5.3",
+  "version": "5.4",
   "description": "YouTube 沉浸式語言學習工具：即時字幕顯示、雙語翻譯、單字本、社群字幕分享與詞彙儀表板。",
   "homepage_url": "https://ytlearningbar.netlify.app/",
   "icons": {

@@ -55,6 +55,8 @@
   let loopingIdx = -1;
   let _playerRO = null;       // ResizeObserver：監聽 player 大小變化以同步 wrapper 高度
   let _forcedTheater = false; // 記錄展開時是否由套件主動切入劇院模式（收合時還原）
+  let _chatPanelHidden = false;    // 記錄是否由套件隱藏直播聊天室重播 panel（收合時還原）
+  let _chatHadChatAttr = false;   // 記錄展開前 ytd-watch-flexy 是否有 chat_ 屬性（還原時才加回）
   let _ccBtnObserver = null;  // MutationObserver：監聽 CC 按鈕 aria-pressed，與 overlay 字幕綁定開關
   let _currentPrimIdx = -1;  // sync loop 目前顯示的主字幕 index（供 >/<  按鈕直接使用，避免 gap 時 findActiveIndex 回傳 -1）
   let _navedToIdx = -1;     // 手動跳句的目標 index；sync loop 必須等 video 真正抵達此 index 才可更新 _currentPrimIdx
@@ -598,6 +600,7 @@
       const val = e.target.value;
       if (val === 'default') {
         customSubtitleActive = false;
+        secondaryCustomActive = false;
         setActiveSourceBtn(null);
         const statusEl = document.getElementById('yt-sub-status');
         if (statusEl) { statusEl.textContent = '已切換至預設字幕'; statusEl.className = 'yt-sub-status'; }
@@ -642,6 +645,7 @@
       trackList = [];
       // 手動重新載入時解除自定義/社群字幕封鎖，重新從 YT 取得
       customSubtitleActive = false;
+      secondaryCustomActive = false;
       setActiveSourceBtn(null);
       applyOverlay(); // 無字幕，撤掉 overlay 並恢復原生字幕
       if (syncInterval) clearInterval(syncInterval);
@@ -718,6 +722,7 @@
       settings.secondaryLangs[0] = this.value;
       // 不呼叫 saveSettings()：只影響當前影片，不覆蓋全域偏好
       secondarySubtitles = [];
+      secondaryCustomActive = false; // 用戶主動切換語言，解除外部匯入封鎖
       autoLoadSubtitles(trackList);
     });
 
@@ -1586,6 +1591,7 @@
         saveSettings();
       }
       customSubtitleActive = false;
+      secondaryCustomActive = false;
       primarySubtitles = []; _rawPrimarySubtitles = [];
       secondarySubtitles = [];
       autoLoadSubtitles(trackList);
@@ -1620,6 +1626,7 @@
       settings.primaryVssId = track.vssId || null;
       saveSettings();
       customSubtitleActive = false;
+      secondaryCustomActive = false;
       primarySubtitles = []; _rawPrimarySubtitles = [];
       loadSubtitle(track, 'primary');
     });
@@ -2867,6 +2874,8 @@
   }
 
   async function translateAndSetSecondary(subs, targetLang, fromTime = null) {
+    // 副字幕已由外部檔案匯入，不允許翻譯覆寫
+    if (secondaryCustomActive) return;
     const videoId = new URLSearchParams(location.search).get('v') || '';
     const cacheKey = videoId + ':' + targetLang;
     console.log('[YT-SUB][TRANS] translateAndSetSecondary called, subsLen=', subs.length, 'target=', targetLang, 'fromTime=', fromTime);
@@ -3328,7 +3337,7 @@
   function applyOverlayPosition(overlay) {
     const pos = settings.subtitlePosition;
     if (!pos) return;
-    overlay.style.bottom = pos.bottom + '%';
+    overlay.style.bottom = Math.min(72, Math.max(0, pos.bottom)) + '%';
   }
 
   // 讓 overlay 可垂直拖曳，left/right 寬度保持不變，拖曳結束後儲存 bottom%
@@ -3358,7 +3367,8 @@
       const pRect = player.getBoundingClientRect();
       // 往上拖 → dy 負 → bottom 增大（字幕升高）
       const dy = ((e.clientY - startY) / pRect.height) * 100;
-      const newBottom = Math.max(0, Math.min(88, startBottom - dy));
+      // 上限 72%：確保拖曳把手永遠在播放器可視範圍內，不會拉到頂部消失
+      const newBottom = Math.max(0, Math.min(72, startBottom - dy));
       overlay.style.bottom = newBottom + '%';
     };
 
@@ -3526,6 +3536,33 @@
     applyLayoutMode('push');
     const sec = document.querySelector('#secondary');
     if (sec) sec.style.setProperty('display', 'none', 'important');
+    // 直播頁：找到聊天室容器並隱藏
+    // #chat-container 是 #columns 的直接 flex 子項，隱藏它才能釋放 flex 空間給 #primary
+    // ytd-live-chat-frame 在 #chat-container 內部，單獨隱藏它 #chat-container 仍佔 flex 空間
+    const chatContainer = document.querySelector('#chat-container');
+    const chatPanel = chatContainer || document.querySelector(
+      'ytd-live-chat-frame, ' +
+      'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-live-chat-replay"], ' +
+      'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-chat-replay"]'
+    );
+    if (chatPanel && chatPanel.style.display !== 'none') {
+      chatPanel.style.setProperty('display', 'none', 'important');
+      const flexy = document.querySelector('ytd-watch-flexy');
+      if (flexy) {
+        _chatHadChatAttr = flexy.hasAttribute('chat_');
+        if (_chatHadChatAttr) flexy.removeAttribute('chat_');
+        flexy._hadLiveChatExpanded = flexy.hasAttribute('live-chat-present-and-expanded');
+        if (flexy._hadLiveChatExpanded) flexy.removeAttribute('live-chat-present-and-expanded');
+      }
+      document.querySelector('ytd-app')?.classList.add('yt-sub-no-chat');
+      // fixed-panels 模式下 YouTube 在 #columns 加 padding-right 並顯示 #panels-full-bleed-container，
+      // 兩者都要處理：移除 padding-right 讓 #primary 填滿，隱藏容器避免黑色遮罩覆蓋影片右側。
+      const cols = document.querySelector('#columns');
+      if (cols) cols.style.setProperty('padding-right', '0', 'important');
+      const panelsFull = document.querySelector('#panels-full-bleed-container');
+      if (panelsFull) panelsFull.style.setProperty('display', 'none', 'important');
+      _chatPanelHidden = true;
+    }
     const onEnd = () => { _ballAnimating = false; ball.removeEventListener('transitionend', onEnd); };
     ball.addEventListener('transitionend', onEnd);
   }
@@ -3543,6 +3580,28 @@
     // 還原 secondary
     const sec = document.querySelector('#secondary');
     if (sec) sec.style.removeProperty('display');
+    // 還原直播聊天室重播 panel（若由套件隱藏）
+    if (_chatPanelHidden) {
+      const chatPanel = document.querySelector(
+        '#chat-container, ' +
+        'ytd-live-chat-frame, ' +
+        'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-live-chat-replay"], ' +
+        'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-chat-replay"]'
+      );
+      if (chatPanel) chatPanel.style.removeProperty('display');
+      document.querySelector('ytd-app')?.classList.remove('yt-sub-no-chat');
+      // 還原 #columns padding-right 和 #panels-full-bleed-container 顯示
+      document.querySelector('#columns')?.style.removeProperty('padding-right');
+      document.querySelector('#panels-full-bleed-container')?.style.removeProperty('display');
+      const flexy = document.querySelector('ytd-watch-flexy');
+      if (flexy) {
+        if (flexy._hadLiveChatExpanded) flexy.setAttribute('live-chat-present-and-expanded', '');
+        flexy._hadLiveChatExpanded = undefined;
+        if (_chatHadChatAttr) flexy.setAttribute('chat_', '');
+      }
+      _chatHadChatAttr = false;
+      _chatPanelHidden = false;
+    }
     // 若展開時由套件強制切入劇院模式，收合時還原
     restoreTheaterMode();
     const onEnd = () => { _ballAnimating = false; ball.removeEventListener('transitionend', onEnd); };
@@ -4783,6 +4842,8 @@
   let captionsDebounce = null;
   // 當使用自定義或社群字幕時，略過來自 YT 的字幕資料
   let customSubtitleActive = false;
+  // 當副字幕由外部檔案匯入時，封鎖 Google Translate 覆寫
+  let secondaryCustomActive = false;
   window.addEventListener('message', function (event) {
     if (event.data?.type === 'YT_SUBTITLE_DEMO_CAPTIONS') {
       clearTimeout(captionsDebounce);
@@ -4902,6 +4963,8 @@
       if (_playerRO) { _playerRO.disconnect(); _playerRO = null; }
       if (_ccBtnObserver) { _ccBtnObserver.disconnect(); _ccBtnObserver = null; }
       _forcedTheater = false;
+      _chatPanelHidden = false;
+      _chatHadChatAttr = false;
       _currentPrimIdx = -1;
       _navedToIdx = -1;
       _navLockedIdx = -1;
@@ -4913,6 +4976,7 @@
       pendingPrimaryTranslation = null;
       // 換影片時重置自定義/社群字幕狀態，允許新影片重新從 YT 取得字幕
       customSubtitleActive = false;
+      secondaryCustomActive = false;
       setActiveSourceBtn(null);
       applyOverlay(); // 換頁時撤掉 overlay
       applyLayoutMode('overlay'); // 換頁時先還原版面，等字幕載入後 expandSidebar 再推開
@@ -5268,11 +5332,11 @@
     }
   }
 
-  // ===== SRT 匯入 =====
+  // ===== 字幕檔匯入（主字幕）=====
   function importSrtFile() {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.srt';
+    input.accept = '.srt,.vtt';
     input.style.display = 'none';
     document.body.appendChild(input);
 
@@ -5283,16 +5347,20 @@
 
       try {
         const text = await file.text();
-        const parsed = parseSrt(text);
-        if (!parsed.length) throw new Error('無法解析 SRT 內容，請確認格式正確');
+        const raw = parseSrt(text);
+        if (!raw.length) throw new Error('無法解析字幕內容，請確認為 SRT 或 VTT 格式');
+
+        const parsed = _deduplicateSubs(raw);
+        const fmt = file.name.endsWith('.vtt') ? 'VTT' : 'SRT';
 
         primarySubtitles = settings.extendSubtitles ? extendSubtitleDurations(parsed) : parsed;
         _rawPrimarySubtitles = parsed;
         secondarySubtitles = [];
+        customSubtitleActive = true;
+        secondaryCustomActive = false; // 新主字幕匯入，允許重新觸發自動翻譯
 
-        // 匯入後自動存入 localStorage（與「儲存本地」相同機制）
         const _srtVid = new URLSearchParams(location.search).get('v') || '';
-        if (_srtVid) chrome.storage.local.set({ [`editedSubtitles_${_srtVid}`]: { primarySubtitles: primarySubtitles, secondarySubtitles: secondarySubtitles.map(s => ({ ...s })), title: document.title.replace(' - YouTube', '') } });
+        if (_srtVid) chrome.storage.local.set({ [`editedSubtitles_${_srtVid}`]: { primarySubtitles, secondarySubtitles: [], title: document.title.replace(' - YouTube', '') } });
 
         applyOverlay();
         renderSubtitleList();
@@ -5301,34 +5369,101 @@
         const _vidNow = document.querySelector('video');
         if (_vidNow) _vidNow.dispatchEvent(new Event('timeupdate'));
 
+        // 若設定了副字幕語言，自動觸發翻譯
+        const secLang = settings.secondaryLangs?.[0];
+        if (secLang && secLang !== '__none__' && settings.translationProvider === 'google') {
+          translateAndSetSecondary(primarySubtitles, secLang);
+        }
+
         const statusEl = document.getElementById('yt-sub-status');
         if (statusEl) {
-          statusEl.textContent = `SRT 已匯入：${file.name}（${parsed.length} 句）`;
+          statusEl.innerHTML =
+            `✓ ${fmt} 已匯入：${file.name}（${parsed.length} 句）` +
+            `&nbsp;<button id="yt-sub-import-sec-btn" style="` +
+              `background:none;border:1px solid #7c3aed;color:#a78bfa;` +
+              `border-radius:4px;padding:1px 7px;font-size:11px;cursor:pointer;` +
+            `">📥 加入副字幕</button>`;
+          statusEl.className = 'yt-sub-status success';
+          document.getElementById('yt-sub-import-sec-btn')
+            ?.addEventListener('click', importSecondaryFile);
+        }
+      } catch (err) {
+        const statusEl = document.getElementById('yt-sub-status');
+        if (statusEl) { statusEl.textContent = `字幕匯入失敗：${err.message}`; statusEl.className = 'yt-sub-status error'; }
+      }
+    });
+
+    input.click();
+  }
+
+  // ===== 字幕檔匯入（副字幕）=====
+  function importSecondaryFile() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.srt,.vtt';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+
+    input.addEventListener('change', async () => {
+      const file = input.files[0];
+      document.body.removeChild(input);
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const raw = parseSrt(text);
+        if (!raw.length) throw new Error('無法解析副字幕內容');
+
+        secondarySubtitles = _deduplicateSubs(raw);
+
+        // 封鎖 Google Translate 對副字幕的覆寫，並取消進行中的翻譯工作
+        secondaryCustomActive = true;
+        if (translationJob) translationJob.cancelled = true;
+        if (_nextBatchTimer) { clearTimeout(_nextBatchTimer); _nextBatchTimer = null; }
+
+        // 同步存入 localStorage
+        const _vid = new URLSearchParams(location.search).get('v') || '';
+        if (_vid) chrome.storage.local.set({ [`editedSubtitles_${_vid}`]: { primarySubtitles, secondarySubtitles: secondarySubtitles.map(s => ({ ...s })), title: document.title.replace(' - YouTube', '') } });
+
+        applyOverlay();
+        renderSubtitleList();
+        const _vidNow = document.querySelector('video');
+        if (_vidNow) _vidNow.dispatchEvent(new Event('timeupdate'));
+
+        const statusEl = document.getElementById('yt-sub-status');
+        if (statusEl) {
+          statusEl.textContent = `✓ 雙字幕已載入（主 ${primarySubtitles.length} 句 ／ 副 ${secondarySubtitles.length} 句）`;
           statusEl.className = 'yt-sub-status success';
         }
       } catch (err) {
         const statusEl = document.getElementById('yt-sub-status');
-        if (statusEl) { statusEl.textContent = `SRT 匯入失敗：${err.message}`; statusEl.className = 'yt-sub-status error'; }
+        if (statusEl) { statusEl.textContent = `副字幕匯入失敗：${err.message}`; statusEl.className = 'yt-sub-status error'; }
       }
     });
 
-    // 若使用者沒選擇檔案（關閉 dialog），focus 觸發後 input 已被移除，無副作用
     input.click();
   }
 
   function parseSrt(srtText) {
     const subs = [];
-    const blocks = srtText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split(/\n\s*\n/);
+    const normalized = srtText
+      .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      // yt-dlp 在時間戳後插入一行空行，將其合併回去
+      .replace(/(-->[^\n]*)\n\n/g, '$1\n');
+    const blocks = normalized.trim().split(/\n\s*\n/);
     for (const block of blocks) {
       const lines = block.trim().split('\n');
       const tsLine = lines.find(l => l.includes('-->'));
       if (!tsLine) continue;
-      const [startStr, endStr] = tsLine.split('-->').map(s => s.trim());
+      // 取前兩段，忽略 VTT cue settings（如 align:start position:0%）
+      const parts = tsLine.split('-->');
+      const startStr = parts[0].trim();
+      const endStr   = parts[1].trim().split(/\s/)[0]; // 只取時間部分
       const startTime = _srtTs(startStr);
       const endTime   = _srtTs(endStr);
       if (isNaN(startTime) || isNaN(endTime) || endTime <= startTime) continue;
       const tsIdx    = lines.indexOf(tsLine);
-      const lineText = lines.slice(tsIdx + 1).join('\n').replace(/<[^>]+>/g, '').trim();
+      const lineText = lines.slice(tsIdx + 1).join('\n').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
       if (!lineText) continue;
       subs.push({ startTime, duration: endTime - startTime, text: lineText });
     }
@@ -5339,6 +5474,22 @@
     const m = ts.match(/(\d+):(\d+):(\d+)[,.](\d+)/);
     if (!m) return NaN;
     return parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseInt(m[3]) + parseInt(m[4]) / 1000;
+  }
+
+  // 去除 ASR 字幕中的重疊句（yt-dlp / YouTube ASR 同一句會出現多個 startTime 相近的 block）
+  function _deduplicateSubs(subs) {
+    if (subs.length < 2) return subs;
+    const result = [];
+    for (const sub of subs) {
+      const prev = result[result.length - 1];
+      // startTime 差 < 200ms 視為同一句的漸進更新，保留後者（文字較完整）
+      if (prev && (sub.startTime - prev.startTime) < 0.2) {
+        result[result.length - 1] = sub;
+      } else {
+        result.push(sub);
+      }
+    }
+    return result;
   }
 
   // ===== 來自編輯器的訊息監聽 =====

@@ -1,7 +1,7 @@
 YouTube Learning Bar - YouTube 沉浸式語言學習工具
 ==================================================
 
-Chrome Store 上架進度（2026-04-30 更新）
+Chrome Store 上架進度（2026-05-01 更新）
 ------------------------------------------
 
 已完成：
@@ -721,6 +721,53 @@ v5.3 更新紀錄（2026-04-29）
   - 新增 tests/qa_vocab_dashboard.mjs
   - T5 改用 window.__qaSetUser 直接注入 mock user，繞過 MV3 SW async 限制
   - 執行：node tests/qa_vocab_dashboard.mjs
+
+---
+
+v5.4 更新紀錄（2026-05-01）
+==============================
+
+【直播聊天室重播 Panel 修正】
+
+■ 展開側邊欄時隱藏直播聊天室重播 panel，影片正確填滿版面
+  - 問題：在直播紀錄影片展開側邊欄後，影片從 1249px 縮小到 545px，右側出現大片空白與黑色遮罩
+  - 根本原因（兩層）：
+    1. ytd-watch-flexy[fixed-panels] 模式下，YouTube 在 #columns 加 padding-right: 343.75px，
+       讓 flex 可用空間從 905px 縮減到 561px，#primary 只能填到 545px
+    2. #panels-full-bleed-container（343.75px 黑色容器）在 fixed-panels 模式下不會自動隱藏，
+       疊在 #primary 右側造成黑色遮罩（光量 getBoundingClientRect().width 無法偵測此問題）
+  - 修正：展開時同步設 #columns { padding-right: 0 } 並隱藏 #panels-full-bleed-container，
+    收合時還原兩者
+  - 修正後影片寬度：#columns=905px，#primary=889px（差 16px 為自身 margin/padding），無遮罩
+
+■ QA 自動化：新增 tests/qa_live_chat_panel.mjs
+  - 13 項斷言：chat panel display=none、chat_ 屬性維持、#primary 填滿 #columns、
+    #panels-full-bleed-container 已隱藏（無黑色遮罩）、收合後還原、冪等性、換頁旗標重置
+  - 執行：node tests/qa_live_chat_panel.mjs（13/13 全過）
+
+---
+
+【字幕匯入優化】
+
+■ 支援 yt-dlp 導出的 SRT / VTT 格式直接匯入
+  - yt-dlp 在時間戳後插入額外空行，parseSrt 原本會將時間戳與文字切成兩個孤立 block
+    導致解析出 0 句；現在預處理自動合併，完整支援 yt-dlp 標準輸出
+  - 支援 VTT 格式：自動忽略 WEBVTT header、Kind/Language metadata、
+    cue settings（align:start position:0%）
+  - 匯入按鈕 accept 從 `.srt` 擴充為 `.srt,.vtt`
+
+■ ASR 重疊字幕自動去重（_deduplicateSubs）
+  - YouTube ASR 字幕同一句會出現多個 startTime 相差 < 200ms 的重疊 block
+  - 自動保留最後一個（文字最完整），解決快速閃爍問題
+
+■ 雙檔匯入流程（主字幕 + 副字幕）
+  - yt-dlp 通常輸出兩個獨立檔案（如 video.en.srt、video.zh-TW.srt）
+  - 匯入主字幕成功後，狀態列顯示「📥 加入副字幕」按鈕，點擊後選取第二個檔案
+  - 兩檔都匯入後顯示「雙字幕已載入（主 N 句 ／ 副 N 句）」確認
+
+■ 匯入後自動觸發翻譯
+  - 若只匯入主字幕、翻譯服務設為 Google、且已設定副字幕語言
+  - 自動呼叫 translateAndSetSecondary，不需手動切換
 
 ---
 

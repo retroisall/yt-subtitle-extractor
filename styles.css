@@ -2835,3 +2835,10 @@
 #yt-sub-ov-right-col #yt-sub-ov-pause-toggle:has(input:checked) {
   opacity: 1;
 }
+
+
+/* 直播聊天室隱藏時：讓 #primary 填滿聊天室消失後的空間 */
+ytd-app.yt-sub-no-chat #primary {
+  flex: 1 !important;
+  max-width: 100% !important;
+}
